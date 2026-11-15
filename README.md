@@ -12,6 +12,9 @@ The open desktop shell of [53ON](https://53on.com): an Electron app that gives y
 
 This repository is the shell, and only the shell. What fills it stays private and is not here: the PC commands, the Harness Cable and the other complements are downloaded separately, each one signed (ed25519) and verified before it is installed. Your memories are files on your own PC: the memory engine is signed code that 53on.com serves and that runs inside the app. The store is 53on.com itself.
 
+> [!TIP]
+> **Run your AI's models at home with [53ON AI Server](https://github.com/enriqxxx/53on-ai-server).** An OpenAI-compatible server built for AMD Ryzen AI Max, free and open source under MIT: local models with llama.cpp, API keys with quotas and cloud providers in one panel. Point the harness at it and your AI runs entirely at home.
+
 ## A whole business behind your AI
 
 53ON is one app instead of five, and the harness puts its AI to work on your PC. At [53on.com](https://53on.com) the same AI, with the same memory, runs your business:
@@ -30,7 +33,7 @@ This repository is the shell, and only the shell. What fills it stays private an
 
 It is one AI with one memory, whether it works inside 53ON or outside it.
 
-- **On its own, with an API.** The AI runs in 53ON's own chat. Bring your key from Anthropic, OpenAI, Google, DeepSeek, Groq, Moonshot, Alibaba or OpenRouter, or use a model that runs on your own PC.
+- **On its own, with an API.** The AI runs in 53ON's own chat. Bring your key from Anthropic, OpenAI, Google, DeepSeek, Groq, Moonshot, Alibaba or OpenRouter, or use a model that runs on your own PC or on your own [53ON AI Server](https://github.com/enriqxxx/53on-ai-server).
 - **Together with Claude Code in VS Code or the terminal.** The Harness Cable installs itself and connects Claude Code with nothing to set up: a memory comes with each message, and the AI wakes up with its memory when a session starts or comes back from an automatic compact. Any other AI with a terminal can use the same commands.
 
 **For maximum use you need the complements, and they come by themselves.** The installer brings only the shell. The first time 53ON starts, it downloads the Body, which brings the Harness Cable and Ear with it. If one is missing, add it from **≡ > Complements > Add more…**
