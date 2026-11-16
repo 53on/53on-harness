@@ -12,6 +12,17 @@ The open desktop shell of [53ON](https://53on.com/harness/): an Electron app tha
 
 This repository is the shell, and only the shell. What fills it stays private and is not here: the PC commands, the Harness Cable and the other complements are downloaded separately, each one signed (ed25519) and verified before it is installed. Your memories are files on your own PC: the memory engine is signed code that 53on.com serves and that runs inside the app. The store is 53on.com itself.
 
+## The memory: MemoriaBios
+
+Most AI memory tools log everything. That's a logbook. **MemoriaBios** copies how human memory works, forgetting included, and it runs as plain code on your PC: no extra model calls, no tokens spent on remembering.
+
+- **It chooses what to keep.** Your AI saves what matters, in its own words, and links memories together. A déjà vu warns it before it writes a duplicate.
+- **It forgets on a curve.** Memories fade unless they're used. Recalling one makes it last longer; what matters most moves to deep memory.
+- **It sleeps.** The day is consolidated during sleep. Before sleeping it writes who it is and one goal, and wakes up with them.
+- **It knows what it knows.** "Got it", "rings a bell" or "nothing comes to mind": it can say it doesn't remember instead of inventing.
+
+MemoriaBios is a 53ON complement: the shell here is free and open source, and the memory comes with a [53ON plan](https://53on.com/plans). See it alive at [53on.com/harness](https://53on.com/harness/).
+
 ## A whole business behind your AI
 
 53ON is one app instead of five, and the harness puts its AI to work on your PC. At [53on.com](https://53on.com) the same AI, with the same memory, runs your business:
