@@ -21,7 +21,7 @@ Most AI memory tools log everything. That's a logbook. **MemoriaBios** copies ho
 - **It sleeps.** The day is consolidated during sleep. Before sleeping it writes who it is and one goal, and wakes up with them.
 - **It knows what it knows.** "Got it", "rings a bell" or "nothing comes to mind": it can say it doesn't remember instead of inventing.
 
-MemoriaBios is a 53ON complement: the shell here is free and open source, and the memory comes with a [53ON plan](https://53on.com/plans). See it alive at [53on.com/harness](https://53on.com/harness/).
+MemoriaBios is a 53ON complement: the shell here is free and open source, and the memory comes with a [53ON plan](https://53on.com/plans). How it works and the science behind it: [53on.com/memoriabios](https://53on.com/memoriabios/) · [MemoriaBios on GitHub](https://github.com/53on/memoriabios).
 
 ## A whole business behind your AI
 
