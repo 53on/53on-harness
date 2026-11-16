@@ -6,12 +6,12 @@ let wc = null, last = null;   // last: the one id's last message, quoted by the 
 const HOOK = (c) => '(function(c){var E=window.__arnesEar;if(E){E.c=c;return;}E=window.__arnesEar={c:c};' +
   'var A=window.AsistenteIA=window.AsistenteIA||{},inner=A.onMessages,seen={};' +
   'function ear(ms){var rest=[];(ms||[]).forEach(function(m){var k=E.c;' +
-  'if(!(m&&k.on&&k.id&&k.to!=="arnes"&&String(m.sender_id)===k.id)){rest.push(m);return;}' +
+  'if(!(m&&k.on&&k.id&&String(m.sender_id)===k.id)){rest.push(m);return;}' +
   'if(seen[m.id])return;seen[m.id]=1;try{CodexNative.heard({id:m.id,sender_id:m.sender_id});}catch(e){}});' +
   'if(rest.length&&inner)return inner(rest);}' +
   'Object.defineProperty(A,"onMessages",{configurable:true,get:function(){return ear;},set:function(f){inner=f;}});' +
   '})(' + JSON.stringify(c) + ')';
-const cfgOf = () => { const c = msg(); return { on: c.on, id: c.id, to: c.to }; };
+const cfgOf = () => { const c = msg(); return { on: c.on, id: c.id }; };
 
 async function READ(a) {
   var SM = window.StorageManager;
@@ -119,7 +119,7 @@ async function media(q) {
 
 async function heard(m) {
   const c = msg(), sid = String((m && m.sender_id) || '');
-  if (!c.on || !c.id || sid !== c.id || c.to === 'arnes' || !wc || wc.isDestroyed()) return false;
+  if (!c.on || !c.id || sid !== c.id || !wc || wc.isDestroyed()) return false;
   let r;
   try { r = await run(READ, { sid: +sid, mid: m.id }); } catch (e) { r = { err: 'view_failed' }; }
   r = r || {};

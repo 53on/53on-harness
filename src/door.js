@@ -14,10 +14,11 @@ async function apt(q, pack) {
   } catch (e) { return fail(e); }
 }
 async function list() {
-  const mine = packs().list(), have = new Set(mine.map((c) => c.id));
+  const mine = packs().list();
   try {
+    await rows();
     return { ok: true, installed: mine.map((c) => ({ id: c.id, ver: c.ver, running: c.running, off: c.off })),
-      available: (await rows()).filter((r) => r.vis === 'pub' && !have.has(r.id)).map((r) => ({ id: r.id, ver: r.ver, ttl: r.ttl || r.id })) };
+      available: packs().offer().map((r) => ({ id: r.id, ver: r.ver, ttl: r.ttl || r.id })) };
   } catch (e) { return fail(e); }
 }
 async function update() {

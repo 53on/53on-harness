@@ -71,16 +71,16 @@ function spec(dir, row) {
   let st = null;
   try { st = fs.lstatSync(file); } catch (_) {}
   if (!st || !st.isFile()) throw new Error('main_missing');
-  const port = c.kind === 'http' ? c.port : 0;
-  if (c.kind === 'http' && (!Number.isInteger(port) || port < 7500 || port > 7599)) throw new Error('port_range');
+  const port = c.kind === 'http' || (c.kind === 'line' && c.port !== undefined) ? c.port : 0;
+  if ((c.kind === 'http' || port !== 0) && (!Number.isInteger(port) || port < 7500 || port > 7599)) throw new Error('port_range');
   const probe = c.probe === undefined ? [] : c.probe;
   if (!Array.isArray(probe) || probe.length > 4 || !probe.every((a) => str(a) && /^--[a-z][a-z0-9-]{0,31}$/.test(a))) throw new Error('probe_bad');
   if (c.engine !== undefined && c.engine !== 'memory.core.js') throw new Error('engine_bad');
   if (c.page !== undefined && (c.page !== 'memory' || c.kind !== 'line')) throw new Error('page_bad');   // a line complement may ask this view's MemoriaBios
   if (c.open !== undefined && !(str(c.open) && /^\/\?gp=[a-z0-9_]{1,40}$/.test(c.open))) throw new Error('open_bad');   // its own 53on.com page, opened apart
-  if (c.conf !== undefined && !(str(c.conf) && c.kind === 'http' && /^\/[a-z0-9_/-]{0,40}$/.test(c.conf))) throw new Error('conf_bad');   // its settings page, on its own port
+  if (c.conf !== undefined && !(str(c.conf) && port && /^\/[a-z0-9_/-]{0,40}$/.test(c.conf))) throw new Error('conf_bad');   // its settings page, on its own port
   const tab = c.tab === undefined ? null : c.tab;
-  if (tab !== null && !(tab && typeof tab === 'object' && c.kind === 'http' && str(tab.name) && /^[A-Za-z0-9 ]{1,16}$/.test(tab.name) && str(tab.path) && /^\/[a-z0-9_/-]{0,40}$/.test(tab.path))) throw new Error('tab_bad');
+  if (tab !== null && !(tab && typeof tab === 'object' && port && str(tab.name) && /^[A-Za-z0-9 ]{1,16}$/.test(tab.name) && str(tab.path) && /^\/[a-z0-9_/-]{0,40}$/.test(tab.path))) throw new Error('tab_bad');
   const w = c.with === undefined ? [] : c.with;   // Debian's Recommends: what its first install brings along
   if (!Array.isArray(w) || w.length > 4 || !w.every((x) => valid(x) && x !== c.id)) throw new Error('with_bad');
   const bin = c.bin === undefined ? {} : c.bin;
@@ -309,6 +309,8 @@ async function tick() {
 
 const DEFAULTS = ['53on-body'];
 
+function offer() { const have = new Set(installed()); return (up.cached() || []).filter((r) => r && r.url && r.sig && r.cat === 'tool' && [].concat(r.os || []).includes('pc') && valid(r.id) && !have.has(r.id)); }
+
 async function ensureAll() {
   for (const id of DEFAULTS) if (!fs.existsSync(home(id))) await update(id).catch((e) => code(e, 'default ' + id));
   for (const id of installed()) {
@@ -317,5 +319,5 @@ async function ensureAll() {
   }
 }
 
-module.exports = { install: install, update: update, start: start, stop: stop, restart: restart, remove: remove, list: list, tabs: tabs, state: state, find: find, tick: tick, ensureAll: ensureAll,
+module.exports = { install: install, update: update, start: start, stop: stop, restart: restart, remove: remove, list: list, tabs: tabs, state: state, find: find, offer: offer, tick: tick, ensureAll: ensureAll,
   valid: valid, home: home, spec: spec, specOf: specOf, child: child, installed: installed, code: code, writeJson: writeJson, T: T };

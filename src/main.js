@@ -91,13 +91,18 @@ function popupAppMenu() {
     { label: __('menu.maps'), click: function () { apart('/?gp=memory_map&direct'); } },   // the memory live beside the chat, for everyone; direct: the map alone, no home behind it
     { label: __('menu.options'), click: function () { S.local('options.html', 'options-preload.js', { width: 600, height: 680, minWidth: 400, minHeight: 440 }); } },   // what `53on config` sets, by hand
   ];
+  const more = packs.offer().map(function (r) {
+    const n = r.ttl || r.id;
+    return { label: n + ' · ' + r.ver, click: function () { addPack(r.id).then(function (x) { if (x.ok) toast('pack.done', n); else if (x.error !== 'owner_declined') toast('pack.fail', n); }); } };
+  });
   items.push({ type: 'separator' }, { label: __('menu.complements'), submenu: mine.map(function (c) {
     const why = c.off ? __('menu.off') : c.running || c.kind === 'plug' ? '' : c.error ? c.error.replace(/_/g, ' ') : __('menu.stopped');
     return { label: c.ttl + ' · ' + c.ver + (why ? ' · ' + why : ''), submenu: [
       { label: __('menu.on'), type: 'checkbox', checked: !c.off, click: function () { (c.off ? packs.start(c.id) : packs.stop(c.id)).catch(function () {}); } },
       { label: __('menu.open'), click: function () { openStore('/?gp=asset_pack&id=' + c.id); } },
     ].concat(c.conf && c.port ? [{ label: __('menu.settings'), enabled: c.running && !c.off, click: function () { S.extra('http://127.0.0.1:' + c.port + c.conf); } }] : []) };
-  }).concat(mine.length ? [{ type: 'separator' }] : [], [{ label: __('menu.more'), click: function () { openStore('/?gp=asset_packs'); } }]) });
+  }).concat(mine.length ? [{ type: 'separator' }] : [], [{ label: __('menu.more'), submenu: more.concat(more.length ? [{ type: 'separator' }] : [],
+    [{ label: __('menu.store'), click: function () { openStore('/?gp=asset_packs'); } }]) }]) });
   const U = require('./update'), help = [
     { label: __('menu.docs'), click: function () { openStore('/?u=conditions_of_use'); } },
     { type: 'separator' },
@@ -160,10 +165,12 @@ function wireOptions() {
     if (!p || typeof p !== 'object' || Array.isArray(p)) return Object.assign(await card(), { ok: false, error: 'json_bad' });
     const fail = async function (error, key) { return Object.assign(await card(), { ok: false, error: error, key: key }); };
     const rest = Object.assign({}, p);
-    if ('lang' in rest) {   // the Arnés's own words (i18n.js); its bar takes them on a reload
-      if (!require('./i18n.js').lang(rest.lang)) return fail('value_bad', 'lang');
+    if ('lang' in rest) {   // the Arnés's own words (i18n.js); its bar takes them on a reload, and the view the house's content by
+      const i18n = require('./i18n.js');
+      if (!i18n.lang(rest.lang)) return fail('value_bad', 'lang');
       delete rest.lang;
       try { S.toolbar.webContents.reload(); } catch (_) {}
+      try { S.web.webContents.loadURL('https://53on.com/?gp=dashboard_provider&language=' + i18n.__('site')); } catch (_) {}   // home
     }
     if ('zoom' in rest) { if (typeof rest.zoom !== 'number') return fail('value_bad', 'zoom'); require('./shell-window.js').zoom(rest.zoom); delete rest.zoom; }
     if ('mode' in rest) { const m = require('./mode').set(rest.mode); if (!m || m.ok === false) return fail('value_bad', 'mode'); delete rest.mode; }
@@ -216,6 +223,7 @@ function wireMessenger() {
   door.handle('media', function (q) { return m.media(q); });
 }
 
+let addPack = null;   // wireComplements sets it: ≡ › Complements › Add more installs through the page's same door
 function wireComplements() {
   const packs = require('./packs');
   const ok = function (id) { return packs.valid(id) && id !== '53on'; };
@@ -236,16 +244,17 @@ function wireComplements() {
   };
   verb('info', function () { return { ok: true, api: 1, app: '53ON', ver: app.getVersion() }; });
   verb('list', function () { return { ok: true, list: packs.list().map(function (c) { c.error = packs.code(c.error); return c; }) }; });
-  verb('install', function (id) {
-    if (!ok(id)) return { ok: false, error: 'id_bad' };
+  addPack = function (id, by) {
+    if (!ok(id)) return Promise.resolve({ ok: false, error: 'id_bad' });
     if (packs.state(id)) return packs.update(id, progress).then(clean);
     return packs.find(id, true).then(function (f) {
       if (!f.row) return { ok: false, error: f.why };
-      const r = f.row, sz = !r.sz ? '' : ' · ' + (r.sz < 1048576 ? Math.ceil(r.sz / 1024) + ' KB' : (r.sz / 1048576).toFixed(1) + ' MB');
-      return ask({ message: 'Install «' + (r.ttl || id) + '»?', detail: id + ' ' + r.ver + sz + '\nRequested by https://53on.com\nIt starts with 53ON and keeps itself up to date.', buttons: ['Cancel', 'Install'] })
+      const r = f.row, __ = require('./i18n.js').__, sz = !r.sz ? '' : ' · ' + (r.sz < 1048576 ? Math.ceil(r.sz / 1024) + ' KB' : (r.sz / 1048576).toFixed(1) + ' MB');
+      return ask({ message: __('pack.ask', { name: r.ttl || id }), detail: id + ' ' + r.ver + sz + (by ? '\n' + __('pack.by', { name: by }) : '') + '\n' + __('pack.keeps'), buttons: [__('dlg.cancel'), __('pack.go')] })
         .then(function (yes) { return yes ? packs.update(id, progress).then(clean) : { ok: false, error: 'owner_declined' }; });
     });
-  });
+  };
+  verb('install', function (id) { return addPack(id, 'https://53on.com'); });
   verb('update', function (id) { return ok(id) && packs.state(id) ? packs.update(id, progress).then(clean) : { ok: false, error: 'not_installed' }; });
   verb('open', function (id) {   // a complement's own page, apart
     const sp = ok(id) && packs.specOf(id);
@@ -263,11 +272,11 @@ function wireComplements() {
 }
 
 function showHelp() {
-  const v = process.versions, os = require('os'), __ = require('./i18n.js').__;
+  const v = process.versions, os = require('os'), __ = require('./i18n.js').__, gh = 'https://github.com/53on/53on-harness';
   const d = [__('about.version') + ': ' + app.getVersion(), 'Electron: ' + v.electron, 'Chromium: ' + v.chrome, 'Node.js: ' + v.node, 'V8: ' + v.v8,
-    'OS: ' + os.type() + ' ' + process.arch + ' ' + os.release(), '', __('about.legal')].join('\n');
-  dialog.showMessageBox(S.win, { type: 'info', title: '53ON', message: '53ON', detail: d, buttons: [__('about.copy'), __('dlg.ok')], defaultId: 1, cancelId: 1, noLink: true })
-    .then(function (r) { if (r.response === 0) require('electron').clipboard.writeText(d); });
+    'OS: ' + os.type() + ' ' + process.arch + ' ' + os.release(), '', __('about.legal'), 'GitHub: ' + gh].join('\n');
+  dialog.showMessageBox(S.win, { type: 'info', title: '53ON', message: '53ON', detail: d, buttons: [__('about.copy'), 'GitHub', __('dlg.ok')], defaultId: 2, cancelId: 2, noLink: true })
+    .then(function (r) { if (r.response === 0) require('electron').clipboard.writeText(d); else if (r.response === 1) require('electron').shell.openExternal(gh); });
 }
 function showLicense() {
   const __ = require('./i18n.js').__;
@@ -602,6 +611,7 @@ function boot() {
   S.win.on('closed', function () { try { require('./overlay').close(); } catch (_) {} try { require('./eyes').close(); } catch (_) {} try { require('./bodyd').haltAll(); } catch (_) {} });
   try { require('./membio').watch(S.web.webContents.session); } catch (_) {}   // the MemoriaBios engine a complement declares is the one this view loads
   require('./update').start(S);            // primer chequeo a los 90 s, luego cada hora ±10 min
+  S.web.webContents.on('did-finish-load', function () { if (!require('./update').cached()) startComplements(); });
   wireIpc();
   require('./bodyd').page = pageVerb;   // the MemoriaBios cable asks this view
   wireKeyboard(S.web.webContents); wireContextMenu(S.web.webContents); wirePanel();

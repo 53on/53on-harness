@@ -2,7 +2,10 @@
 const { app } = require('electron');
 const fs = require('fs'), path = require('path'), https = require('https'), crypto = require('crypto'), { pipeline } = require('stream/promises');
 
-const CATALOG = 'https://53on.com/xsite/packages/AssetPacks/Catalog/index.json';
+const CATALOG = 'https://53on.com/xsite/packages/AssetPacks/Controllers/pst_packs_list.php?self=1';
+const jar = () => require('electron').session.defaultSession.cookies.get({ url: 'https://53on.com' })
+  .then((l) => ({ Cookie: l.map((c) => c.name + '=' + c.value).join('; ') }), () => ({}));
+function rowsOf(body) { const c = JSON.parse(body); if (c.ok === false) throw new Error(c.e === 'L' ? 'login_required' : 'catalog'); return Array.isArray(c) ? c : (c.p || c.packs || []); }
 const PACK = '53on-setup';
 const HOSTS = ['53on.com', 'vcorpsllc.com'];   // de donde puede venir el catalogo y el blob, redirecciones incluidas
 const PUB = Buffer.from('9kh4LAjsjTpWxO02agF37Wd6QwFkWZjy5Snp56E7AbA=', 'base64');
@@ -55,11 +58,11 @@ function offer() {
 }
 async function check(force) {
   try {
-    const res = await get(CATALOG, !force && st.etag ? { 'If-None-Match': st.etag } : {});
+    const res = await get(CATALOG, Object.assign(await jar(), !force && st.etag ? { 'If-None-Match': st.etag } : {}));
     if (res.statusCode === 304) { res.resume(); return offer(); }
     if (res.statusCode !== 200) { res.resume(); return null; }
     let body = ''; for await (const c of res) body += c;
-    const cat = JSON.parse(body), rows = Array.isArray(cat) ? cat : (cat.p || cat.packs || []);
+    const rows = rowsOf(body);
     catRows = rows;
     const r = rows.find(function (x) { return x && x.id === PACK && (!x.os || x.os.includes('pc')); });
     st.etag = res.headers.etag || '';
@@ -67,7 +70,10 @@ async function check(force) {
     save();
     if (st.row && newer(st.row.ver, app.getVersion()) && !signed(st.row)) log('sig invalid ' + st.row.ver);
     return offer();
-  } catch (e) { log('check ' + e.message); return null; }
+  } catch (e) {
+    if (e.message === 'login_required') { st.row = null; catRows = null; save(); }   // logged out: nothing is offered
+    log('check ' + e.message); return null;
+  }
 }
 async function beat() {
   try {
@@ -111,12 +117,10 @@ async function grab(r, file, onPct) {
 
 async function rows(force) {
   if (!force && catRows) return catRows;
-  const res = await get(CATALOG, {});
+  const res = await get(CATALOG, await jar());
   if (res.statusCode !== 200) { res.resume(); throw new Error('http_' + res.statusCode); }
   let body = ''; for await (const c of res) body += c;
-  const cat = JSON.parse(body);
-  catRows = Array.isArray(cat) ? cat : (cat.p || cat.packs || []);
-  return catRows;
+  return (catRows = rowsOf(body));
 }
 
 async function download() {
@@ -146,4 +150,4 @@ function start(shell) {
 }
 
 module.exports = { on: ON && app.isPackaged, start: start, check: check, download: download, newer: newer,
-  rows: rows, grab: grab, signed: signed, verify: verify, trusted: trusted, get: get, beat: beat };
+  rows: rows, cached: () => catRows, grab: grab, signed: signed, verify: verify, trusted: trusted, get: get, beat: beat };

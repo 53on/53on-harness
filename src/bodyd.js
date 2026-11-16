@@ -54,7 +54,7 @@ function env(id, home, port) {
 }
 
 function launch(id) {
-  const k = kids.get(id), c0 = k.cfg, line = c0.kind === 'line', once = c0.kind === 'once', out = sink(id), e = env(id, c0.home, c0.kind === 'http' ? c0.port : 0);
+  const k = kids.get(id), c0 = k.cfg, line = c0.kind === 'line', once = c0.kind === 'once', out = sink(id), e = env(id, c0.home, c0.port || 0);
   if (once) e.COMPLEMENT_REASON = c0.reason || 'start';
   if (c0.page) e.COMPLEMENT_PAGE = c0.page;
   if (c0.plugs) e.COMPLEMENT_PLUGS = c0.plugs;   // the mains of the complements plugged into this one
@@ -93,7 +93,7 @@ function launch(id) {
     log(id, 'relaunch in ' + w + 'ms (try ' + k.restarts + ')');
     k.timer = setTimeout(async () => {   // a port someone took meanwhile is theirs: say so, launch nothing
       if (k.stopping) return;
-      if (k.cfg.kind === 'http' && await held(k.cfg.port)) { k.error = 'port_taken:' + k.cfg.port; log(id, k.error); return; }
+      if (k.cfg.port && await held(k.cfg.port)) { k.error = 'port_taken:' + k.cfg.port; log(id, k.error); return; }
       if (!k.stopping) launch(id);
     }, w);
   });
@@ -104,7 +104,7 @@ async function runNow(id, o) {
   const had = kids.has(id) && !!kids.get(id).child;
   await haltNow(id);
   const kind = o.kind, port = +o.port || 0, cfg = { dir: o.dir, entry: o.entry, kind: kind, port: port, home: o.home, reason: o.reason, page: o.page, plugs: o.plugs };
-  if (kind === 'http') {
+  if (port) {   // its port, an http one's or a line one's page: ours, never another's
     if (had) for (let i = 0; i < 10 && await held(port); i++) await nap(300);   // our own child letting go
     if (await held(port)) {   // someone else listens on its port: say so, launch nothing
       const error = 'port_taken:' + port;
@@ -139,7 +139,7 @@ async function runNow(id, o) {
     return res;
   }
   log(id, 'alive pid=' + (k.child && k.child.pid));
-  return { ok: true, pid: k.child && k.child.pid, port: kind === 'http' ? port : 0, ms: Date.now() - t0 };
+  return { ok: true, pid: k.child && k.child.pid, port: port, ms: Date.now() - t0 };
 }
 
 function kill(c) {
@@ -193,7 +193,7 @@ const cutAll = () => Promise.all([...kids.values()].map((k) => { const c = k.chi
 function info(id) {
   const k = kids.get(id);
   return { running: !!(k && k.child), pid: k && k.child ? k.child.pid : 0, restarts: k ? k.restarts : 0, since: k ? k.since || 0 : 0,
-    busy: k ? k.busy || 0 : 0, port: k && k.cfg && k.cfg.kind === 'http' ? k.cfg.port : 0, error: k && !k.child ? k.error || '' : '', note: k && (k.child || k.cfg.kind === 'once') ? k.note || '' : '' };
+    busy: k ? k.busy || 0 : 0, port: k && k.cfg ? k.cfg.port || 0 : 0, error: k && !k.child ? k.error || '' : '', note: k && (k.child || k.cfg.kind === 'once') ? k.note || '' : '' };
 }
 
 setInterval(() => {

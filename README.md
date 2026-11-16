@@ -2,18 +2,15 @@
 
 **Your AI, with a memory that stays and hands, eyes and voice on your own PC. Works with Claude Code.**
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows%2010%20%2F%2011-0078D6?style=for-the-badge)](https://github.com/enriqxxx/53on-harness/releases/latest) [![53on.com](https://img.shields.io/badge/53on.com-store-7C5CFF?style=for-the-badge)](https://53on.com)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%2010%20%2F%2011-0078D6?style=for-the-badge)](https://github.com/53on/53on-harness/releases/latest) [![53on.com](https://img.shields.io/badge/53on.com-store-7C5CFF?style=for-the-badge)](https://53on.com)
 
-[![Release](https://img.shields.io/github/v/release/enriqxxx/53on-harness)](https://github.com/enriqxxx/53on-harness/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Installer: signed](https://img.shields.io/badge/installer-signed-2ea44f)](#code-signing-policy)
+[![Release](https://img.shields.io/github/v/release/53on/53on-harness)](https://github.com/53on/53on-harness/releases/latest) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Installer: signed](https://img.shields.io/badge/installer-signed-2ea44f)](#code-signing-policy)
 
 The open desktop shell of [53ON](https://53on.com): an Electron app that gives your AI hands, eyes and voice on your own PC. You stay the only guardian.
 
 ![53ON Harness: the home, the chat with its model and live metrics, the AI load with its complements, and the chat menu with its effort and Ultracode](assets/screenshots.png)
 
 This repository is the shell, and only the shell. What fills it stays private and is not here: the PC commands, the Harness Cable and the other complements are downloaded separately, each one signed (ed25519) and verified before it is installed. Your memories are files on your own PC: the memory engine is signed code that 53on.com serves and that runs inside the app. The store is 53on.com itself.
-
-> [!TIP]
-> **Run your AI's models at home with [53ON AI Server](https://github.com/enriqxxx/53on-ai-server).** An OpenAI-compatible server built for AMD Ryzen AI Max, free and open source under MIT: local models with llama.cpp, API keys with quotas and cloud providers in one panel. Point the harness at it and your AI runs entirely at home.
 
 ## A whole business behind your AI
 
@@ -33,7 +30,7 @@ This repository is the shell, and only the shell. What fills it stays private an
 
 It is one AI with one memory, whether it works inside 53ON or outside it.
 
-- **On its own, with an API.** The AI runs in 53ON's own chat. Bring your key from Anthropic, OpenAI, Google, DeepSeek, Groq, Moonshot, Alibaba or OpenRouter, or use a model that runs on your own PC or on your own [53ON AI Server](https://github.com/enriqxxx/53on-ai-server).
+- **On its own, with an API.** The AI runs in 53ON's own chat. Bring your key from Anthropic, OpenAI, Google, DeepSeek, Groq, Moonshot, Alibaba or OpenRouter, or use a model that runs on your own PC.
 - **Together with Claude Code in VS Code or the terminal.** The Harness Cable installs itself and connects Claude Code with nothing to set up: a memory comes with each message, and the AI wakes up with its memory when a session starts or comes back from an automatic compact. Any other AI with a terminal can use the same commands.
 
 **For maximum use you need the complements, and they come by themselves.** The installer brings only the shell. The first time 53ON starts, it downloads the Body, which brings the Harness Cable and Ear with it. If one is missing, add it from **≡ > Complements > Add more…**
@@ -65,9 +62,20 @@ One button decides how much the AI may do, and nothing else can change it: neith
 | `auto` | Runs what the guard considers safe and pauses on anything dangerous. |
 | `bypass` | Never asks. Only the owner can choose it, by hand. |
 
+## How prompts reach Claude Code
+
+VS Code gives no other program a way to put a message in Claude Code's chat, so 53ON types it, as you would. That is how your phone's messages, scheduled prompts (`m prompt`), messages between sections (`m SendMessage`) and the sleep and wake (`/compact`) get there.
+
+- **The shortcut.** The Harness Cable adds one line to VS Code's `keybindings.json`: `ctrl+alt+shift+f12` runs `claude-vscode.focus` (Claude Code: Focus input). 53ON presses it to put the cursor in the chat box. The cable also adds `claude-vscode.focus` to `terminal.integrated.commandsToSkipShell` in `settings.json`, so the shortcut works while the cursor is in the terminal. Removing the cable takes both out.
+- **The right chat.** 53ON opens the session with Claude Code's own link (`vscode://anthropic.claude-code/open?session=<id>`) and types only when VS Code shows that chat. If another chat is in front, nothing is typed.
+- **It waits for you.** It types only after 8 seconds with no keyboard or mouse input, and while you keep working it tries again every minute, for 10 minutes. If you press keys while it types, the message still goes, and you hear that it got mixed.
+- **It checks.** A message counts as delivered only when it appears in that session's transcript. If it does not, you hear it.
+- **What it needs.** Windows and VS Code installed for your user (`%APPDATA%\Code\User`), with the Claude Code extension; the cable installs the extension if it is missing. Claude Code in a terminal works too: 53ON finds its window by the chat's name.
+- **If prompts do not arrive.** Check that `keybindings.json` still has the line above and that nothing else uses `ctrl+alt+shift+f12`. If you bound Focus input to another key, keep this line too.
+
 ## Download
 
-Windows 10 and 11, 64-bit. Get the installer from [Releases](https://github.com/enriqxxx/53on-harness/releases/latest) or the store of [53on.com](https://53on.com).
+Windows 10 and 11, 64-bit. Get the installer from [Releases](https://github.com/53on/53on-harness/releases/latest) or the store of [53on.com](https://53on.com).
 
 - **Signed.** The installer and the app carry an Authenticode signature with a timestamp, so Windows can verify who published them and that nothing changed on the way.
 - **Updates itself, safely.** Installed builds update from a signed catalog row: an update whose signature or hash does not match is refused.
