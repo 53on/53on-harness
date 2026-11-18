@@ -61,7 +61,7 @@ async function SEND(a) {
   var t = await (await fetch('/' + root + '/packages/Messaging/Controllers/pst_message_send.php', { method: 'POST', body: fd, credentials: 'same-origin' })).text();
   if (t === 'L') return { ok: false, error: 'session_expired' };
   var r; try { r = JSON.parse(t); } catch (e) { return { ok: false, error: 'bad_answer' }; }
-  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { StorageManager.saveMessage(String(a.to), r.message); } catch (e) {}
+  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { StorageManager.saveMessage(String(a.to), r.message); window.Chat && Chat.checkLocalMessages && Chat.checkLocalMessages(); } catch (e) {}
   return r && r.ok ? { ok: true, message_id: r.message && r.message.id } : { ok: false, error: (r && r.error) || 'send_failed' };
 }
 async function MEDIA(a) {
@@ -80,7 +80,7 @@ async function MEDIA(a) {
   var t = await (await fetch('/' + root + a.endpoint, { method: 'POST', body: fd, credentials: 'same-origin' })).text();
   if (t === 'L') return { ok: false, error: 'session_expired' };
   var r; try { r = JSON.parse(t); } catch (e) { return { ok: false, error: 'bad_answer' }; }
-  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { StorageManager.saveMessage(String(a.to), r.message); } catch (e) {}
+  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { [r.text, r.message].forEach(function (m) { if (m) StorageManager.saveMessage(String(a.to), m); }); window.Chat && Chat.checkLocalMessages && Chat.checkLocalMessages(); } catch (e) {}   // its words first, as the server made them
   return r && r.ok ? { ok: true, message_id: r.message && r.message.id } : { ok: false, error: (r && r.error) || 'send_failed' };
 }
 const run = (f, a) => wc.executeJavaScript('(' + f + ')(' + JSON.stringify(a) + ')', true);
@@ -111,7 +111,7 @@ async function media(q) {
   if (!k || !q.b64 || !/^(audio|image)\/[\w.+-]+$/.test(String(q.mime || ''))) return { ok: false, error: 'media_bad' };
   const id = msg().id, extras = { recipient_id: id };
   if (q.kind === 'voice') { extras.duration = String(Math.max(1, Math.round(+q.duration || 1))); if (reply(id)) extras.reply_to = reply(id); }
-  else if (q.caption) extras.content = String(q.caption);
+  if (q.caption) extras.content = String(q.caption);   // a voice's words ride with it too: one request, one push (18-nov)
   const name = q.kind === 'image' && q.ext ? 'image.' + String(q.ext).replace(/\W/g, '') : k.name;
   try { return await run(MEDIA, Object.assign({ to: id, b64: String(q.b64), mime: q.mime, extras: extras }, k, { name: name })); }
   catch (_) { return { ok: false, error: 'view_failed' }; }
