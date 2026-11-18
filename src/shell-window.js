@@ -19,8 +19,9 @@ try {
 } catch (_) {}
 
 const PRIV = /^(localhost$|.*\.(localhost|local|internal)$|0\.|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[(::1|f[cd]|fe80))/i;
-function applyCorsHeaders(ses) {
+function applyCorsHeaders(ses, only) {
   ses.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, function (d, cb) {
+    if (only && !only(d)) return cb({});
     const u = /^(https?):\/\/([^/:?#]+|\[[^\]]+\])(?::(\d+))?/i.exec(d.url) || [], h = d.responseHeaders || {};
     const ollama = u[1] === 'http' && /^(localhost|127\.0\.0\.1)$/i.test(u[2] || '') && u[3] === '11434';
     if (!ollama && (u[1] !== 'https' || PRIV.test(u[2] || '') || Object.keys(h).some(function (k) { return k.toLowerCase() === 'access-control-allow-origin'; }))) return cb({});

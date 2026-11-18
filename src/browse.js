@@ -9,6 +9,7 @@ function sess() {
   ses = session.fromPartition(PART);
   ses.setUserAgent(ses.getUserAgent().replace(/ (53on|Electron)\/\S+/gi, ''));
   ses.webRequest.onCompleted((d) => ring(logs.net, { url: d.url, method: d.method, status: d.statusCode, type: d.resourceType, ts: Date.now() }));
+  require('./shell-window').applyCorsHeaders(ses, (d) => own(d.frame && d.frame.url));   // 53on.com here reaches its AI providers as in the owner's view
   ses.setPermissionCheckHandler((wc, p, o) => own(o) || said.get(o + ' ' + p) === true);
   ses.setPermissionRequestHandler((wc, p, cb, d) => {
     let o = ''; try { o = new URL(d.requestingUrl).origin; } catch (_) {}

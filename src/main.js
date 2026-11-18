@@ -23,10 +23,13 @@ function isOwnerLan(url) {
   return h === 'localhost' || /\.local$/i.test(h) || /^127\./.test(h) ||
     /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
 }
-app.on('certificate-error', function (e, wc, url, err, cert, cb) {
-  if (!isOwnerLan(url)) return cb(false);
-  console.log('[tls] owner LAN, certificate accepted: ' + url.split('/').slice(0, 3).join('/') + ' (' + err + ')');
-  e.preventDefault(); cb(true);
+const tlsSaid = {};
+app.on('session-created', function (ses) {
+  ses.setCertificateVerifyProc(function (r, cb) {
+    if (!r.errorCode || !isOwnerLan('https://' + r.hostname)) return cb(-3);   // -3 = Chromium's own verdict
+    if (!tlsSaid[r.hostname]) { tlsSaid[r.hostname] = 1; console.log('[tls] owner LAN, certificate accepted: ' + r.hostname + ' (' + r.verificationResult + ')'); }
+    cb(0);
+  });
 });
 
 let S = null;   // el cascaron vivo: { win, web, toolbar, layout, pushNav, ... }
