@@ -1,7 +1,7 @@
 'use strict';
 (function () {
   var $ = function (id) { return document.getElementById(id); }, T = {};
-  var LABELS = ['h', 'sub', 'tApp', 'lUi', 'lZoom', 'lMode', 'dMode', 'tAi', 'dAi', 'ai', 'tTheme', 'dTheme', 'theme', 'tMsg', 'dMsg', 'lId', 'lTo', 'lTone', 'lSay', 'tDl', 'pickDir', 'lAsk', 'tPacks'];
+  var LABELS = ['h', 'sub', 'tApp', 'lUi', 'lZoom', 'lMode', 'dMode', 'tAi', 'dAi', 'ai', 'lLook', 'tTheme', 'dTheme', 'theme', 'tMsg', 'dMsg', 'lId', 'lTo', 'lTone', 'lSay', 'tDl', 'pickDir', 'lAsk', 'tPacks'];
   function labels() { LABELS.forEach(function (k) { $(k).textContent = T[k] || ''; }); document.title = T.h || 'Options'; }
   var fill = function (sel, opts, v) {   // its options, then its value (one it does not list is added, never lost)
     if (!opts.some(function (o) { return o[0] === v; }) && v != null) opts = opts.concat([[v, String(v)]]);
@@ -15,6 +15,7 @@
     fill($('ui'), (s.langs || []).map(function (l) { return [l.code, l.name]; }), s.lang);
     fill($('zoom'), [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2].map(function (z) { return [String(z), Math.round(z * 100) + ' %']; }), String(s.zoom));
     fill($('mode'), s.modes.map(function (m) { return [m, T[m] || m]; }), s.mode);
+    fill($('look'), [['auto', T.lookAuto], ['light', T.lookLight], ['dark', T.lookDark]], s.look);
     var d = s.door || {};   // the body's door (53ON's own): open, or whoever holds its port
     $('dDoor').textContent = !d.port ? '' : d.open ? T.door.replace('{p}', d.port).replace('{n}', d.peers) : /^port_taken/.test(d.error) ? T.taken.replace('{p}', d.port) : d.error || '';
     $('dDoor').className = 'd' + (d.port && !d.open ? ' err' : '');
@@ -42,6 +43,7 @@
   $('zoom').addEventListener('change', function () { save({ zoom: +this.value }); });
   $('mode').addEventListener('change', function () { save({ mode: this.value }); });
   $('ai').addEventListener('click', function () { save({ ai: 1 }); });
+  $('look').addEventListener('change', function () { save({ look: this.value }); });
   $('theme').addEventListener('click', function () { save({ theme: 1 }); });
   var msg = function () { save({ msg: { on: $('mon').checked, id: $('uid').value, to: $('to').value } }); };
   ['mon', 'uid', 'to'].forEach(function (k) { $(k).addEventListener('change', msg); });

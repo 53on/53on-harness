@@ -269,6 +269,7 @@ function build() {
   toolbar.webContents.loadFile(path.join(RENDERER, 'toolbar.html'));
 
   const ses = web.webContents.session;
+  if (!ses.protocol.isProtocolHandled('https')) require('./view-cache.js')(ses);
   const mine = function (u) { return own(u) || /^file:/i.test(u); }, free = function (p) { return p === 'fullscreen' || p === 'clipboard-sanitized-write'; };
   ses.setPermissionRequestHandler(function (wc, perm, cb, d) { cb(free(perm) || mine(d && d.requestingUrl)); });
   ses.setPermissionCheckHandler(function (wc, perm, origin) { return free(perm) || mine(origin); });

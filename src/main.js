@@ -158,6 +158,7 @@ function wireOptions() {
     const i18n = require('./i18n.js');
     return { ok: true, lang: i18n.lang(), langs: i18n.langs(), t: i18n.bag('options'), zoom: require('./shell-window.js').zoom(), mode: mode.get(), modes: mode.MODES,
       door: require('./door').info(), body: body, config: g.config, ear: ear, dl: require('./share').dir(),
+      look: (await askPage("typeof ConfigStore !== 'undefined' ? ConfigStore.get('theme', 'auto') : null")) || require('./shell-window.js').theme(),
       packs: packs.list().map(function (c) { return { id: c.id, ttl: c.ttl, ver: c.ver, kind: c.kind, on: !c.off, running: c.running }; }) };
   };
   opts.handle('options:get', function () { return card(); });
@@ -182,6 +183,11 @@ function wireOptions() {
       delete rest.pack;
     }
     if ('ai' in rest) { openStore('/?gp=loader_card'); return Object.assign(await card(), { shown: true }); }
+    if ('look' in rest) {
+      const v = rest.look; if (!['auto', 'light', 'dark'].includes(v)) return fail('value_bad', 'look');
+      if (!await askPage("(function (v) { ConfigStore.set('theme', v); if (typeof ConfigManager !== 'undefined') ConfigManager.applyTheme(); return 1; })(" + JSON.stringify(v) + ')')) return fail('no_view', 'look');
+      delete rest.look;
+    }
     if ('theme' in rest) { S.web.webContents.loadURL('https://53on.com/m?v=settings'); return Object.assign(await card(), { shown: true }); }
     if ('open' in rest) {
       const r = await fetch('http://127.0.0.1:' + ((require('./packs').specOf(BODY) || {}).port || 7531) + '/open', { method: 'POST', signal: AbortSignal.timeout(60000) })
@@ -343,6 +349,13 @@ function wirePanel() {
   });
 }
 
+function askPage(js) {
+  const wc = S.web.webContents;
+  try { if (wc.isDestroyed() || new URL(wc.getURL()).origin !== 'https://53on.com') return Promise.resolve(null); } catch (_) { return Promise.resolve(null); }
+  let t;
+  return Promise.race([wc.executeJavaScript(js, true), new Promise(function (r) { t = setTimeout(r, 2000, null); })])
+    .catch(function () { return null; }).finally(function () { clearTimeout(t); });
+}
 function wireIpc() {
   const goHome = function (then) {
     const wc = S.web.webContents, after = function () { if (then) wc.executeJavaScript(then).catch(function () {}); };
@@ -369,7 +382,7 @@ function wireIpc() {
   S.toolbar.webContents.on('did-finish-load', aiTell);
   const freshView = async function (clean) {
     const wc = S.web.webContents;
-    if (clean) { await wc.session.clearCache(); wc.reloadIgnoringCache(); } else wc.reload();
+    if (clean) { await Promise.all([wc.session.clearCache(), require('./view-cache.js').clear()]); wc.reloadIgnoringCache(); } else wc.reload();
     return { ok: true, clean: !!clean };
   };
   view.handle('codex:cache:clear', function () { return freshView(true); });
@@ -378,13 +391,6 @@ function wireIpc() {
   view.on('codex:awake', function (e, on) { awake(on); });
   require('./door').handle('reload', function (m) { return freshView(m.arg === 'clean'); });
   require('./door').look(function () { return { immersive: !!(S && S.isImmersive()), awake: awakeId !== null }; });
-  const askPage = function (js) {
-    const wc = S.web.webContents;
-    try { if (wc.isDestroyed() || new URL(wc.getURL()).origin !== 'https://53on.com') return Promise.resolve(null); } catch (_) { return Promise.resolve(null); }
-    let t;
-    return Promise.race([wc.executeJavaScript(js, true), new Promise(function (r) { t = setTimeout(r, 2000, null); })])
-      .catch(function () { return null; }).finally(function () { clearTimeout(t); });
-  };
   require('./door').page(askPage);
   require('./door').busy(function () { return askPage('(window.AiMonitor&&AiMonitor.busy)?+AiMonitor.busy()||0:0').then(function (b) { return +b || 0; }); });
   view.handle('codex:overlay', function (e, msg) { try { return { ok: require('./overlay').send(msg) }; } catch (x) { return { ok: false, error: String((x && x.message) || x) }; } });
