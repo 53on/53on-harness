@@ -73,6 +73,7 @@ async function ask(m, p) {
   if (op === 'close') return close(m.tab), { ok: true };
   if (op === 'logs') { const a = logs[m.kind] || logs.console, l = a.slice(-(+m.n || 200)); if (m.clear) a.length = 0; return { ok: true, list: l }; }
   if (op === 'list') return { ok: true, tabs: [...tabs].map(([n, t]) => ({ tab: n, url: t.wc.getURL(), title: t.wc.getTitle() })) };
+  if (op === 'free') { let n = 0; for (const t of tabs.values()) try { if (t.wc.debugger.isAttached()) { t.wc.debugger.detach(); n++; } } catch (_) {} return { ok: true, freed: n }; }
   if (!/^(open|cdp|go|nav|url|shot|bounds|front)$/.test(op)) return { ok: false, error: 'op_bad' };
   if (p && p !== peer) { peer = p; p.on('close', () => { if (peer !== p) return; peer = null; clearTimeout(gone); gone = setTimeout(close, 10000); }); }
   clearTimeout(gone);

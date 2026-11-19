@@ -499,8 +499,9 @@
         if (isToast) {
             el.style.cssText = 'display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5));animation:ov_toastIn .25s ease-out';
             const pic = el.appendChild(document.createElement(gifUrl ? 'img' : 'span'));   // built, never HTML: an address is the owner's text
-            if (gifUrl) { pic.src = gifUrl; pic.draggable = false; pic.style.cssText = 'height:72px;width:auto;display:block'; }
-            else { pic.textContent = emoji; pic.style.cssText = 'font-size:48px;line-height:1'; }
+            const k = Math.min(Math.max(+opts.scale || 1, 1), 3);   // the eyes on the whole desktop come twice the size (18-nov)
+            if (gifUrl) { pic.src = gifUrl; pic.draggable = false; pic.style.cssText = 'height:' + 72 * k + 'px;width:auto;display:block'; }
+            else { pic.textContent = emoji; pic.style.cssText = 'font-size:' + 48 * k + 'px;line-height:1'; }
             if (label) { const t = el.appendChild(document.createElement('div')); t.textContent = label; t.style.cssText = PILL; }
             animEl.appendChild(el);
             requestAnimationFrame(animHot);

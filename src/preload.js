@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('ScreenBridgeDesktop', {
 contextBridge.exposeInMainWorld('BodyBridgeDesktop', { shot: function (tab) { return ipcRenderer.invoke('codex:body', 'shot', { tabId: tab }); },
   route: function (r, args) { return ipcRenderer.invoke('codex:body', 'route', { route: r, args: args }); } });
 const share = function (op) { return function (a, b, c) { return ipcRenderer.invoke('codex:share', op, a, b, c); }; };
-contextBridge.exposeInMainWorld('ShareBridgeDesktop', { shareUrl: share('url'), shareBase64: share('base64'), shareText: share('text') });
+const out = function (u) { ipcRenderer.send('codex:out', String(u || '')); };
+contextBridge.exposeInMainWorld('ShareBridgeDesktop', { shareUrl: share('url'), shareBase64: share('base64'), shareText: share('text'), openProvider: out, openExternal: out });
 contextBridge.exposeInMainWorld('EyesBridgeDesktop', {
   screen: function () { return ipcRenderer.invoke('codex:eyes:screen', { data: 1, max: 1600 }); },
   camera: function () { return ipcRenderer.invoke('codex:eyes:camera', { data: 1, max: 1280 }); },

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('CodexPanel', {
   onTab: function (f) { ipcRenderer.on('panel:tab', function (e, t) { f(t); }); },
   onState: function (f) { ipcRenderer.on('panel:state', function (e, o) { f(o); }); },
   onNotes: function (f) { ipcRenderer.on('panel:notes', function (e, l, n) { f(l, n); }); },
+  onAccent: function (f) { ipcRenderer.on('panel:accent', function (e, c) { f(c); }); },
   note: function (tag) { ipcRenderer.send('panel:note', String(tag || '')); },
   seen: function (clear) { ipcRenderer.send('panel:notes', !!clear); },
 });

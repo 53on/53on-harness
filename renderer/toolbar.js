@@ -5,6 +5,7 @@
   var pill = $('#pill'), pillText = $('#pill-text');
 
   var T = window.ShellNav.t();   // the Arnés's language (i18n.js); English when a word is missing
+  if (T.accent) document.documentElement.style.setProperty('--acc', T.accent);   // Options' accent color
   [['#menu', 'menu'], ['#home', 'home'], ['#msgs', 'messages'], ['#ai', 'ai'], ['#update', 'update'], ['#pill', 'page']].forEach(function (x) { var e = $(x[0]); if (e && T[x[1]]) e.title = T[x[1]]; });
   if (T.update) $('#update').textContent = T.update;
   if (T.ai) $('#ai').textContent = T.ai;
@@ -33,10 +34,10 @@
   upd.addEventListener('click', function () { if (upd.dataset.state === 'downloading') return; upd.textContent = '0%'; upd.dataset.state = 'downloading'; window.ShellApp.update(); });
   window.ShellApp.onUpdate(function (u) {
     if (!u) return;
-    if (u.state === 'available') { updVer = u.ver; upd.textContent = 'Update ' + u.ver; upd.title = 'Update to ' + u.ver + (u.sz ? ' · ' + Math.round(u.sz / 1048576) + ' MB' : ''); upd.style.display = ''; }
+    if (u.state === 'available') { updVer = u.ver; upd.textContent = (T.updateTo || 'Update {v}').replace('{v}', u.ver); upd.title = (T.updateTip || 'Update to {v}').replace('{v}', u.ver) + (u.sz ? ' · ' + Math.round(u.sz / 1048576) + ' MB' : ''); upd.style.display = ''; }
     else if (u.state === 'downloading') upd.textContent = (u.pct || 0) + '%';
-    else if (u.state === 'restarting') upd.textContent = 'Restarting…';
-    else if (u.state === 'error') { upd.textContent = 'Retry ' + updVer; upd.title = String(u.e || 'error'); }
+    else if (u.state === 'restarting') upd.textContent = T.restarting || 'Restarting…';
+    else if (u.state === 'error') { upd.textContent = (T.retry || 'Retry {v}').replace('{v}', updVer); upd.title = String(u.e || 'error'); }
     upd.dataset.state = u.state;
   });
 })();

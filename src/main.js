@@ -54,13 +54,14 @@ function askOwner(cmd, verdict) {
     if (w === 'allow') return true;
     if (w) { verdict.reason = w; return false; }   // plan: held, and the model reads why instead of guessing
   } catch (e) {}
-  const opts = {
+  const __ = require('./i18n.js').__, opts = {
     type: verdict.danger ? 'warning' : 'question',
-    buttons: ['Cancel', 'Run', 'Always allow'], defaultId: 1, cancelId: 0,
-    title: 'Confirm command',
-    message: (verdict.danger ? '⚠️ ' + verdict.reason : 'Confirm (' + verdict.reason + ')'),
+    buttons: [__('dlg.cancel'), __('ask.run'), __('ask.always')], defaultId: 1, cancelId: 0,
+    title: __('ask.title'),
+    message: (verdict.danger ? '⚠️ ' + verdict.reason : __('ask.confirm', { r: verdict.reason })),
     detail: cmd,
   };
+  if (S && S.bell) S.bell(__('ask.title'), cmd);
   const r = (S && S.win) ? dialog.showMessageBoxSync(S.win, opts) : dialog.showMessageBoxSync(opts);
   if (r === 2 && !verdict.danger) { try { require('./allowlist').allow(cmd); } catch (e) {} }
   return r === 1 || r === 2;
@@ -159,7 +160,7 @@ function wireOptions() {
       } catch (_) {}
     }
     const i18n = require('./i18n.js');
-    return { ok: true, lang: i18n.lang(), langs: i18n.langs(), t: i18n.bag('options'), zoom: require('./shell-window.js').zoom(), mode: mode.get(), modes: mode.MODES,
+    return { ok: true, lang: i18n.lang(), langs: i18n.langs(), t: i18n.bag('options'), zoom: require('./shell-window.js').zoom(), accent: require('./shell-window.js').accent(), mode: mode.get(), modes: mode.MODES,
       door: require('./door').info(), body: body, config: g.config, ear: ear, dl: require('./share').dir(),
       look: (await askPage("typeof ConfigStore !== 'undefined' ? ConfigStore.get('theme', 'auto') : null")) || require('./shell-window.js').theme(),
       packs: packs.list().map(function (c) { return { id: c.id, ttl: c.ttl, ver: c.ver, kind: c.kind, on: !c.off, running: c.running }; }) };
@@ -177,6 +178,7 @@ function wireOptions() {
       try { S.web.webContents.loadURL('https://53on.com/?gp=dashboard_provider&language=' + i18n.__('site')); } catch (_) {}   // home
     }
     if ('zoom' in rest) { if (typeof rest.zoom !== 'number') return fail('value_bad', 'zoom'); require('./shell-window.js').zoom(rest.zoom); delete rest.zoom; }
+    if ('accent' in rest) { if (!require('./shell-window.js').accent(rest.accent)) return fail('value_bad', 'accent'); delete rest.accent; try { S.toolbar.webContents.reload(); } catch (_) {} if (S.tint) S.tint(require('./shell-window.js').accent()); }
     if ('mode' in rest) { const m = require('./mode').set(rest.mode); if (!m || m.ok === false) return fail('value_bad', 'mode'); delete rest.mode; }
     if ('pack' in rest) {   // a complement's switch (D6), the same as ≡ › 🧩 Complements
       const k = rest.pack || {}, packs = require('./packs');
@@ -335,14 +337,17 @@ function wirePanel() {
     if (S.win.isMinimized()) S.win.restore(); S.win.show(); S.win.focus();
     S.web.webContents.executeJavaScript("document.dispatchEvent(new CustomEvent('webviewapp:notify-click',{detail:" + JSON.stringify(tag) + '}))').catch(function () {});
   };
-  view.on('codex:notify', function (e, t, b, tag) {
-    const n = { t: Date.now(), title: String(t || '').slice(0, 120), body: String(b || '').slice(0, 300), tag: String(tag || '').slice(0, 80) };   // the page's words, never trusted as typed
+  S.bell = function (t, b, tag) {
+    const n = { t: Date.now(), title: String(t || '').slice(0, 120), body: String(b || '').slice(0, 300), tag: String(tag || '').slice(0, 80) };
     notes.unshift(n); notes.length = Math.min(notes.length, 50); unread++; tell();
-    if (!S.win.isFocused()) { const x = new (require('electron').Notification)({ title: n.title, body: n.body }); x.on('click', function () { tap(n.tag); }); x.show(); }
-  });
+    if (!S.win.isFocused()) { const x = new (require('electron').Notification)({ title: n.title, body: n.body }); x.on('click', function () { tap(n.tag); }); x.show(); S.win.flashFrame(true); }
+  };
+  view.on('codex:notify', function (e, t, b, tag) { S.bell(t, b, tag); });
+  view.on('codex:out', function (e, u) { if (/^https?:\/\//i.test(u)) require('electron').shell.openExternal(u).catch(function () {}); });   // a link the page sends out: the default browser
   pane.on('panel:note', function (e, tag) { tap(String(tag || '')); });
   pane.on('panel:notes', function (e, clear) { if (clear) notes.length = 0; unread = 0; tell(); });   // the bell opened (read) or cleared
-  pane.handle('panel:watch', function (e) { paneWc = e.sender; return Object.assign({ ring: audit.watch(e.sender), words: words, open: S.panel.open(), notes: notes, unread: unread }, now()); });
+  pane.handle('panel:watch', function (e) { paneWc = e.sender; return Object.assign({ ring: audit.watch(e.sender), words: words, open: S.panel.open(), notes: notes, unread: unread, accent: require('./shell-window.js').accent() }, now()); });
+  S.tint = function (c) { if (paneWc && !paneWc.isDestroyed()) paneWc.send('panel:accent', c); };   // a new accent, live: its terminals stay
   pane.handle('panel:refresh', now);
   pane.on('panel:drag', function (e, on, h) { S.panel.drag(on, h); });
   pane.on('panel:toggle', function (e, on) { S.panel.toggle(on); });
@@ -375,7 +380,7 @@ function wireIpc() {
   bar.on('app:fullscreen-toggle', function () { S.win.setFullScreen(!S.win.isFullScreen()); });
   bar.on('app:menu', function () { popupAppMenu(); });
   bar.on('app:update', function () { require('./update').download(); });   // el boton azul de la barra
-  bar.on('i18n:bar', function (e) { e.returnValue = require('./i18n.js').bag('bar'); });   // the bar's own words
+  bar.on('i18n:bar', function (e) { e.returnValue = Object.assign(require('./i18n.js').bag('bar'), { accent: require('./shell-window.js').accent() }); });   // the bar's own words
   bar.handle('codex:mode:get', function () { try { return { ok: true, mode: require('./mode').get(), modes: require('./mode').MODES }; } catch (x) { return { ok: false, e: String(x.message || x) }; } });
   bar.handle('codex:mode:set', function (e, m) { try { return require('./mode').set(m); } catch (x) { return { ok: false, e: String(x.message || x) }; } });
   view.on('codex:working', function (e, b) { S.win.setProgressBar(b ? 2 : -1); });
@@ -483,7 +488,8 @@ function wireIpc() {
   function _fsAsk(title, detail, danger) {
     const w = require('./mode').says({ danger: !!danger, reason: title });
     if (w) return w === 'allow' ? '' : w;
-    const opts = { type: danger ? 'warning' : 'question', buttons: ['Cancel', 'Apply'], defaultId: 0, cancelId: 0, title: title, message: title, detail: detail };
+    const __ = require('./i18n.js').__, opts = { type: danger ? 'warning' : 'question', buttons: [__('dlg.cancel'), __('ask.apply')], defaultId: 0, cancelId: 0, title: title, message: title, detail: detail };
+    if (S && S.bell) S.bell(title, detail);
     return ((S && S.win) ? dialog.showMessageBoxSync(S.win, opts) : dialog.showMessageBoxSync(opts)) === 1 ? '' : 'denied: the owner did not approve';
   }
   const IMG_EXT = /[.](png|jpe?g|gif|webp|bmp)$/i;
@@ -598,9 +604,9 @@ function wireIpc() {
 
 const SHUT_AI = 'window.pteToggleAI&&pteToggleAI(false);';
 const SHUT_MSGS = "var h=document.querySelector('.ch-home-btn');if(h&&h.offsetParent)h.click();";
-const GO_HOME_JS = "(function(){" + SHUT_AI + SHUT_MSGS + "if(!window.spaGo)return 'reload';try{spaGo('/?gp=dashboard_provider');return 'ok';}catch(e){return 'reload';}})()";
+const GO_HOME_JS = "(function(){" + SHUT_AI + SHUT_MSGS + "if(location.pathname==='/'&&/[?&]gp=dashboard_provider(&|$)/.test(location.search))return 'here';if(!window.spaGo)return 'reload';try{spaGo('/?gp=dashboard_provider');return 'ok';}catch(e){return 'reload';}})()";
 
-const GO_MSGS_JS = "(function(){" + SHUT_AI + "if(location.pathname==='/m')return 'here';var b=document.getElementById('azInboxBtn');if(b){b.click();return 'ok';}return 'load';})()";
+const GO_MSGS_JS = "(function(){" + SHUT_AI + "var o=document.querySelector('.ch-home-btn');if(location.pathname==='/m'||(o&&o.offsetParent))return 'here';var b=document.getElementById('azInboxBtn');if(b){b.click();return 'ok';}return 'load';})()";
 const OPEN_AI_JS =
   "(function(){return new Promise(function(ok){if(window.pteToggleAI){pteToggleAI(true);return ok('ok');}" +
   "var b=document.querySelector('.js-ai-open');if(b)b.click();var n=0;(function t(){" +

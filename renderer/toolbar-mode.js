@@ -1,12 +1,13 @@
 (function () {
-  var FACE = { manual: 'Manual', plan: 'Plan', auto: 'Auto', bypass: 'Bypass permissions' };
+  var T = (window.ShellNav && ShellNav.t()) || {};
+  var FACE = { manual: T.manual || 'Manual', plan: T.plan || 'Plan', auto: T.auto || 'Auto', bypass: T.bypass || 'Bypass permissions' };
   var COLOR = { manual: '', plan: '#2f6fb2', auto: '#c47f00', bypass: '#c0392b' };
   var ORDER = ['manual', 'plan', 'auto', 'bypass'];
   var now = 'manual';
 
   function paint() {
     var b = document.getElementById('mode');
-    if (b && b.textContent !== FACE[now]) { b.textContent = FACE[now] || now; b.style.color = COLOR[now] || ''; }
+    if (b && b.textContent !== FACE[now]) { b.textContent = FACE[now] || now; b.style.color = COLOR[now] || ''; if (T.mode) b.title = T.mode; }
   }
   function pull() {
     if (!window.ShellMode) return setTimeout(pull, 300);   // the bar can load before the bridge

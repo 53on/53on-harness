@@ -77,6 +77,12 @@ function zoom(f) {
   }
   return spots.zoom || 1;
 }
+const ACCENT = '#7c5cff';
+function accent(c) {
+  load();
+  if (c !== undefined) { if (!/^#[0-9a-f]{6}$/i.test(c)) return false; spots.accent = c.toLowerCase(); try { require('./packs').writeJson(SPOTS(), spots); } catch (_) {} }
+  return spots.accent || ACCENT;
+}
 const THEMES = { dark: { bg: '#0f1420', fg: '#c7d2e0' }, light: { bg: '#f0f2f5', fg: '#111b21' } };
 const frames = new Set(), views = new Set(), pages = new Set();
 function theme(t) {
@@ -279,10 +285,7 @@ function build() {
     .then(function () { web.webContents.loadURL(HOME); }, function () { web.webContents.loadURL(HOME); });
 
   function opens(d) {
-    try {
-      const host = new URL(d.url).hostname;
-      if (isInternalHost(host)) return { action: 'allow' };   // popup de login, etc.
-    } catch (_) {}
+    try { if (d.disposition === 'new-window' && isInternalHost(new URL(d.url).hostname)) return { action: 'allow' }; } catch (_) {}
     out(d.url);
     return { action: 'deny' };
   }
@@ -373,4 +376,4 @@ function build() {
     extra: function (url) { return extra(url || web.webContents.getURL() || HOME, opens); }, local: local };
 }
 
-module.exports = { build: build, local: local, apartView: apartView, zoom: zoom, theme: theme, applyCorsHeaders: applyCorsHeaders, TOOLBAR_H: TOOLBAR_H, HOME: HOME };
+module.exports = { build: build, local: local, apartView: apartView, zoom: zoom, accent: accent, theme: theme, applyCorsHeaders: applyCorsHeaders, TOOLBAR_H: TOOLBAR_H, HOME: HOME };

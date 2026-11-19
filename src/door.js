@@ -70,7 +70,7 @@ const SECTIONS = '(function(){var A=window.AutoCall,M=window.AiMonitor,P=window.
   + '.map(function(k){return{id:k,name:String((P&&P.title&&P.title(k))||k),busy:M&&M.busy?+M.busy(k)||0:0}})})()';
 const ASK = {
   version: () => ({ ok: true, version: app.getVersion() }),
-  ui: () => ({ ok: true, lang: require('./i18n').lang() }),
+  ui: () => ({ ok: true, lang: require('./i18n').lang(), accent: require('./shell-window.js').accent() }),
   status: () => Promise.all([app.getGPUInfo('complete'), aiBusy()]).then(([g, b]) => Object.assign({ ok: true, version: app.getVersion(),
     uptime: Math.round(process.uptime()), busy: +b || 0, gpu: (g.auxAttributes || {}).glRenderer || '', door: { port: gatePort, peers: peers.size },
     packs: packs().list().map((c) => ({ id: c.id, ver: c.ver, running: !!c.running, off: !!c.off })) }, look())),

@@ -82,7 +82,9 @@
     d.onpointerup = (u) => { d.onpointermove = d.onpointerup = null; H.classList.remove('drag'); P.drag(false, innerHeight - u.clientY - SB); };
   };
   new MutationObserver(() => { if (tabs.some((t) => t.id === cur)) show(cur); }).observe(H, { attributes: true, attributeFilter: ['data-theme'] });
+  if (P.onAccent) P.onAccent((c) => H.style.setProperty('--acc', c));   // Options' accent color, live
   P.watch().then((x) => {
+    if (x.accent) H.style.setProperty('--acc', x.accent);
     ring = x.ring; W = x.words; tabs = x.tabs; ports = x.ports; open = !!x.open; H.classList.toggle('closed', !open); notes = x.notes || []; unread = x.unread || 0; bell();
     $('clear').title = W.clear; $('close').title = W.close; $('max').title = W.max; $('q').placeholder = W.filter; $('cnt').title = W.problems;
     let k = 'problems'; try { k = localStorage.getItem('tab') || k; } catch (_) {}
