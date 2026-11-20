@@ -28,12 +28,12 @@ function set(m) {
 
 const DENIED = 'plan mode: read and propose only — nothing is touched until the owner approves the plan';
 
-function says(verdict) {
-  load();
-  if (mode === 'bypass') return 'allow';
-  if (mode === 'plan') return DENIED;
-  if (mode === 'auto') return verdict && verdict.danger ? '' : 'allow';   // solo lo destructivo u ofuscado
-  return '';                                                             // manual: todo lo que llego aqui
+function says(verdict, m) {
+  m = MODES.indexOf(m) !== -1 ? m : load();
+  if (m === 'bypass') return 'allow';
+  if (m === 'plan') return DENIED;
+  if (m === 'auto') return verdict && verdict.danger ? '' : 'allow';   // solo lo destructivo u ofuscado
+  return '';                                                          // manual: todo lo que llego aqui
 }
 
 module.exports = { init, get, set, says, DENIED, MODES };

@@ -95,7 +95,8 @@ function spec(dir, row) {
   if (why) throw new Error(why);
   return { id: c.id, ver: String(c.ver), dir: dir, kind: c.kind, main: file, port: port, probe: probe, engine: c.engine || '', page: c.page || '', open: c.open || '', conf: c.conf || '', tab: tab, plug: c.kind === 'plug' ? c.plug : '', with: w, bin: bin, prerm: prerm, ttl: String(c.ttl || c.id) };
 }
-function plugsOf(id) { return installed().filter((x) => !state(x).off).map(specOf).filter((p) => p && p.kind === 'plug' && p.plug === id).map((p) => p.main).join(';'); }   // a plug switched off rides no more
+function plugsOf(id) { return installed().filter((x) => !state(x).off).map(specOf).filter((p) => p && p.kind === 'plug' && p.plug === id).map((p) => p.main)
+  .concat(id === '53on-body' ? require('./plugins').mains() : []).join(';'); }   // a plug switched off rides no more; an extension's code rides the Body (§2.12)
 function specOf(id) { const s = state(id); try { return s ? spec(s.dir) : null; } catch (_) { return null; } }
 
 function child(sp, args, pre) {

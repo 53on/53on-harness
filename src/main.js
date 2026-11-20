@@ -51,8 +51,8 @@ function atPanel(e) { return !!(S && S.panel) && e.sender === S.panel.wc() && e.
 view.handle = (function (h) { return function (ch, f) { h(ch, /^codex:(shell:exec|fs:|search:|jobs:|open$)/.test(ch) ? require('./audit').wrap(ch, f) : f); }; })(view.handle);
 app.on('web-contents-created', function (e, wc) { wc.on('will-attach-webview', function (ev) { ev.preventDefault(); }); });
 
-function askOwner(cmd, verdict) {
-  try { const w = require('./mode').says(verdict);
+function askOwner(cmd, verdict, m) {
+  try { const w = require('./mode').says(verdict, m);
     if (w === 'allow') return true;
     if (w) { verdict.reason = w; return false; }   // plan: held, and the model reads why instead of guessing
   } catch (e) {}
@@ -104,8 +104,12 @@ const hand = (f) => require('./share').copy(f).then((k) => (toast(k ? 'share.' +
 function popupAppMenu() {
   if (!S) return;
   const wc = S.web.webContents, __ = require('./i18n.js').__, packs = require('./packs');
-  let mine = [];
+  let mine = [], own = [];
   try { mine = packs.list(); } catch (_) {}
+  try { const P = require('./plugins'); own = P.all().map(function (p) { return { label: (p.name || p.dir) + (p.version ? ' · ' + p.version : ''), submenu: [
+    { label: __('menu.on'), type: 'checkbox', checked: p.on, click: function () { P.set(p.dir, { on: !p.on }); if (p.main) packs.restart('53on-body').catch(function () {}); } },
+    { label: __('menu.folder'), click: function () { const d = P.folder(p.dir); if (d) shell.openPath(d); } }]
+    .concat(p.conf ? [{ label: __('menu.settings'), enabled: p.on, click: function () { openConf(P.target(p.dir)); } }] : []) }; }); } catch (_) {}
   const items = [
     { label: __('menu.fullscreen'), accelerator: 'F11', click: function () { S.win.setFullScreen(!S.win.isFullScreen()); } },
     { label: __('menu.immersive'), accelerator: 'Alt+Enter', click: function () { S.immersive(true); } },
@@ -124,7 +128,7 @@ function popupAppMenu() {
       { label: __('menu.on'), type: 'checkbox', checked: !c.off, click: function () { (c.off ? packs.start(c.id) : packs.stop(c.id)).catch(function () {}); } },
       { label: __('menu.open'), click: function () { openStore('/?gp=asset_pack&id=' + c.id); } },
     ].concat(c.conf && c.port ? [{ label: __('menu.settings'), enabled: c.running && !c.off, click: function () { S.extra('http://127.0.0.1:' + c.port + c.conf); } }] : []) };
-  }).concat(mine.length ? [{ type: 'separator' }] : [], [{ label: __('menu.more'), submenu: more.concat(more.length ? [{ type: 'separator' }] : [],
+  }).concat(own, mine.length || own.length ? [{ type: 'separator' }] : [], [{ label: __('menu.more'), submenu: more.concat(more.length ? [{ type: 'separator' }] : [],
     [{ label: __('menu.store'), click: function () { openStore('/?gp=asset_packs'); } }]) }]) });
   const U = require('./update'), help = [
     { label: __('menu.docs'), click: function () { openStore('/?u=conditions_of_use'); } },
@@ -148,6 +152,7 @@ function popupAppMenu() {
   Menu.buildFromTemplate(items).popup();   // en el cursor (Menu.popup con {window} espera BrowserWindow; BaseWindow → sin window)
 }
 function apart(p) { S.extra('https://53on.com' + p); }
+function openConf(t) { if (!t) return; if (/^https?:/.test(t)) return S.extra(t); if (/\.html?$/i.test(t)) return S.extra(require('url').pathToFileURL(t).href); shell.openPath(t); }
 function openStore(p) {
   const wc = S.web.webContents, url = require('./i18n.js').site(p);
   let at = '';
@@ -172,6 +177,7 @@ function openBody() {
     .then(function (x) { return x.json(); }).catch(function () { return { ok: false, error: 'no_body' }; });
 }
 function wireOptions() {
+  let picked = '';   // the last folder its owner picked for a plugin's draft (its Save may carry only that one)
   const card = async function () {
     const g = require('./settings').get(), packs = require('./packs'), mode = require('./mode'), s = packs.state('53on-ear'), ear = { installed: !!s, on: !!s && !s.off };
     const b = packs.state(BODY), body = { installed: !!b, on: !!b && !b.off };
@@ -186,7 +192,8 @@ function wireOptions() {
     return { ok: true, lang: i18n.lang(), langs: i18n.langs(), t: i18n.bag('options'), zoom: require('./shell-window.js').zoom(), accent: require('./shell-window.js').accent(), mode: mode.get(), modes: mode.MODES,
       door: require('./door').info(), body: body, config: g.config, ear: ear, dl: require('./share').dir(),
       look: (await askPage("typeof ConfigStore !== 'undefined' ? ConfigStore.get('theme', 'auto') : null")) || require('./shell-window.js').theme(),
-      packs: packs.list().map(function (c) { return { id: c.id, ttl: c.ttl, ver: c.ver, kind: c.kind, on: !c.off, running: c.running }; }) };
+      packs: packs.list().map(function (c) { return { id: c.id, ttl: c.ttl, ver: c.ver, kind: c.kind, on: !c.off, running: c.running }; }), plugins: require('./plugins').all(),
+      cable: !!packs.state('53on-memory-cable') };   // the Cable column shows only with the Harness Cable installed (§2.12)
   };
   opts.handle('options:get', function () { return card(); });
   opts.handle('options:set', async function (e, p) {
@@ -209,6 +216,27 @@ function wireOptions() {
       const r = await (k.on ? packs.start(k.id) : packs.stop(k.id));
       if (!r.ok) return fail(packs.code(r.error), 'pack');
       delete rest.pack;
+    }
+    if ('plug' in rest) {
+      const k = rest.plug || {}, P = require('./plugins'), was = P.all().find(function (x) { return x.dir === k.dir; }) || {}, win = BrowserWindow.fromWebContents(e.sender);
+      let r = { ok: false, error: 'value_bad' };
+      if (k.op === 'add' || k.op === 'pick') {
+        const d = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
+        if (d.canceled || !d.filePaths[0]) return card();
+        if (k.op === 'pick') { picked = d.filePaths[0]; return Object.assign(await card(), { picked: picked, kept: true }); }
+        r = P.add(d.filePaths[0]);
+      } else if (k.op === 'del') {
+        const t = require('./i18n.js').bag('options'), q = await dialog.showMessageBox(win, { type: 'warning', title: t.delT, message: t.delT, detail: t.delM, buttons: [t.pCancel, t.pDel], defaultId: 0, cancelId: 0, noLink: true });
+        if (q.response !== 1) return Object.assign(await card(), { kept: true });
+        r = P.del(k.dir);
+      } else if (k.op === 'set' && k.p && typeof k.p === 'object') {
+        const x = {}; ['name', 'version', 'on', 'commands', 'comment', 'conf'].forEach(function (f) { if (f in k.p) x[f] = k.p[f]; });
+        if (k.p.dir && k.p.dir === picked) x.dir = picked;   // its main, never from here
+        r = P.set(k.dir, x);
+      }
+      if (!r.ok) return fail(r.error, 'plug');
+      if (was.main && (k.op === 'del' || k.op === 'set')) require('./packs').restart(BODY).catch(function () {});
+      delete rest.plug;
     }
     if ('fresh' in rest) { if (!S.fresh) return fail('no_view', 'fresh'); await S.fresh(true); return Object.assign(await card(), { cleaned: true }); }
     if ('wipe' in rest) {
@@ -499,6 +527,7 @@ function wireIpc() {
   });
   wireComplements();
   wireOptions();
+  require('./plugins').init(app.getPath('userData'));   // 🧩 the owner's plugins (§2.12): their list, and the AI's guide beside it
   wireMessenger();
   require('./voice').wire(view, S.web.webContents, gate);   // 🗣️ the voice and the ear the phone has (VoiceBridge, SttBridge in preload.js); the body's speak uses it
   S.disk = require('./filesystem').wire(page, S.web.webContents.session, { save: require('./share').save, share: hand });   // 💾 the disk the phone has (FileSystemBridge in disk-preload.js), in <data>\fs
@@ -516,9 +545,9 @@ function wireIpc() {
     const command = String(opts.command || '');
     const kind = opts.kind === 'bash' ? 'bash' : 'powershell';
     const host = kind === 'bash' && opts.host ? String(opts.host) : '', shown = host ? 'ssh ' + host + ' ' + command : command;
-    const verdict = classify(shown);
-    if (verdict.risk !== 'safe') {
-      const ok = askOwner(shown, verdict);
+    const verdict = classify(shown), pm = require('./plugins').perm(shown);
+    if (verdict.risk !== 'safe' || pm === 'manual' || pm === 'plan') {
+      const ok = askOwner(shown, verdict, pm);
       if (!ok) return { held: true, reason: verdict.reason, outputText: '', exit_code: 126 };
     }
     const run = kind === 'bash' ? runBash : runPowerShell;
@@ -530,6 +559,7 @@ function wireIpc() {
   const nfs = require('fs'), npath = require('path'), nos = require('os');
   function _fsResolve(p) { p = String(p || '').trim(); if (!p) throw new Error('ruta vacía');
     return npath.resolve(nos.homedir(), p.replace(/^~(?=[\\/]|$)/, nos.homedir()).replace(/^\/tmp(?=[\\/]|$)/, nos.tmpdir()).replace(/^\/([a-z])(?=[\\/]|$)/i, function (m, d) { return d.toUpperCase() + ':/'; })); }
+  const _inData = function (p) { try { return String(p).toLowerCase().startsWith(require('electron').app.getPath('userData').toLowerCase() + npath.sep); } catch (_) { return false; } };
   function _fsAsk(title, detail, danger) {
     const w = require('./mode').says({ danger: !!danger, reason: title });
     if (w) return w === 'allow' ? '' : w;
@@ -623,7 +653,7 @@ function wireIpc() {
       const no = _fsAsk('Write file?', m[0] + '\n\n(' + content.length + ' chars)', true); if (no) return { ok: false, e: no };
       return one(m[0], function () { return R.remotePut(m[1], m[2], Buffer.from(content, 'utf8')); }).then(function (r) { return { ok: true, path: m[0], bytes: Buffer.byteLength(content), created: r.created }; }, function (e) { return far(m, e); }); }
     try { const abs = _fsResolve(p); content = String(content == null ? '' : content); const exists = nfs.existsSync(abs);
-      const no = _fsAsk(exists ? 'Overwrite file?' : 'Create file?', abs + '\n\n(' + content.length + ' chars)', exists); if (no) return { ok: false, e: no };
+      const no = _fsAsk(exists ? 'Overwrite file?' : 'Create file?', abs + '\n\n(' + content.length + ' chars)', exists || _inData(abs)); if (no) return { ok: false, e: no };
       nfs.mkdirSync(npath.dirname(abs), { recursive: true }); nfs.writeFileSync(abs, content, 'utf8');
       return { ok: true, path: abs, bytes: Buffer.byteLength(content), created: !exists };
     } catch (e) { return { ok: false, e: String(e.message || e) }; }
@@ -635,7 +665,7 @@ function wireIpc() {
     const n = t.split(find).length - 1;
     if (n === 0) return { ok: false, e: 'not found: old_string is not in the file' };
     if (n > 1 && !all) return { ok: false, e: 'ambiguous: found ' + n + ' times; add context to make it unique, or replace_all' };
-    const no = _fsAsk('Edit file?', where + (n > 1 ? ' (×' + n + ')' : '') + '\n\n− ' + find.slice(0, 280) + '\n+ ' + replace.slice(0, 280), false); if (no) return { ok: false, e: no };
+    const no = _fsAsk('Edit file?', where + (n > 1 ? ' (×' + n + ')' : '') + '\n\n− ' + find.slice(0, 280) + '\n+ ' + replace.slice(0, 280), _inData(where)); if (no) return { ok: false, e: no };
     return Promise.resolve(put(Buffer.from(t.split(find).join(replace), enc))).then(function () { return { ok: true, path: where, n: n }; });
   }
   view.handle('codex:fs:edit', function (evt, p, find, replace, all) {
