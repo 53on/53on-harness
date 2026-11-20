@@ -68,6 +68,16 @@ It is one AI with one memory, whether it works inside 53ON or outside it.
 
 It installs per user, without administrator rights, and updates itself. Windows Settings > Apps removes it.
 
+## Plugins
+
+Anything that runs from a command line becomes a command your AI sees and uses: a script, a `.exe`, a `.bat`, a Node or Python tool, a CLI. Read your mail, back up a folder, drive a device. You make it at home or clone it from GitHub, and you or your AI plug it in.
+
+- **By hand:** Options › Plugins › Add a plugin › Choose folder. The pencil opens its options: name and version, its folder, its options menu (whatever its author put in its folder, or a web address) and a table of its commands. Save applies it all at once, and Cancel drops it.
+- **By your AI:** one list, `plugins.json`, in the Harness's data folder (`%LOCALAPPDATA%\Programs\53on\data`). `plugins.example.json`, beside it, is the guide: each entry has a `name`, a `version`, a `dir`, `on`, a `conf` (its options menu), a `comment` and its `commands`, and each command has its `cmd` (the command line it runs, up to 100 characters), its `help` (up to 80), and `active`, `helper`, `cable` and `perm`. The Harness reads the list again when it changes. A plugin that brings routes for the Body adds `main`.
+- **Where its commands show:** `m` (the helper) lists them under `## Plugins`. The AI inside sees the ones marked Helper. Claude Code and Codex, through the Harness Cable, see the ones marked Cable.
+- **Permissions:** each command has its own level, with the words of the permission button. The default is Bypass permissions. The Harness Cable puts a Bypass command line into Claude Code's `allow` and takes it out when it changes. A line that chains, pipes or redirects (`&&`, `;`, `|`, `>`, `$( )`) never counts as the plugin's own: the button decides it.
+- **What is not edited:** Body, Cable and Ear come signed from the store. A plugin only adds; it never covers a command of theirs.
+
 ## Permission modes
 
 One button decides how much the AI may do, and nothing else can change it: neither the model nor a page.
