@@ -20,6 +20,7 @@ Most AI memory tools log everything. That's a logbook. **MemoriaBios** copies ho
 - **It forgets on a curve.** Memories fade unless they're used. Recalling one makes it last longer; what matters most moves to deep memory.
 - **It sleeps.** The day is consolidated during sleep. Before sleeping it writes who it is and one goal, and wakes up with them.
 - **It knows what it knows.** "Got it", "rings a bell" or "nothing comes to mind": it can say it doesn't remember instead of inventing.
+- **You can see it.** MemoriaBios Maps draws the whole memory live with Babylon.js, with a level of detail of its own, like cluster-based LOD: a cold memory melts into its nearest hotter one, and the screen keeps a fixed budget of 2,200 points, hottest first. [See it on the Babylon.js forum](https://forum.babylonjs.com/t/64718).
 
 MemoriaBios is a 53ON complement: the shell here is free and open source, and the memory comes with a [53ON plan](https://53on.com/plans). How it works and the science behind it: [53on.com/memoriabios](https://53on.com/memoriabios/) · [MemoriaBios on GitHub](https://github.com/53on/memoriabios).
 
