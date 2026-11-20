@@ -80,8 +80,10 @@ async function camera(o) {
   return { ok: true, file: f, w: r.w, h: r.h };
 }
 
+let guard = () => Promise.resolve(true);
 module.exports = {
-  screen: shot,
+  screen: (o) => guard().then((y) => (y ? shot(o) : { ok: false, error: 'owner_declined' })),
+  guard: (f) => { guard = f; },
   camera: camera,
   cameras: () => ask({ list: true }, 8000),
   listen: () => ask({ listen: true }, 45000).then((r) => (r.ok ? require('./voice').hear(r.data, 'webm') : r)),

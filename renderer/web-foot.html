@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'"><title>Body</title>
+<link rel="stylesheet" href="toolbar.css">
+<style>
+body{display:flex;align-items:center;height:24px;padding:0 10px;background:var(--panel);border-top:1px solid var(--line);font:12px 'Segoe UI',system-ui,sans-serif;user-select:none;box-sizing:border-box}
+label{display:flex;align-items:center;gap:6px;cursor:pointer}
+#ai{appearance:none;position:relative;width:26px;height:14px;margin:0;border-radius:7px;background:var(--line);cursor:pointer;transition:background .15s}
+#ai::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:left .15s}
+#ai:checked{background:#7c5cff}#ai:checked::after{left:14px}
+</style></head>
+<body><label><input type="checkbox" id="ai"><span id="t"></span></label><script src="web-foot.js"></script></body></html>

@@ -2,7 +2,7 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); }, T = {};
   var LABELS = ['h', 'gGen', 'lUi', 'lZoom', 'lLook', 'lAcc', 'gAi', 'lMode', 'tAi', 'ai', 'tTheme', 'theme', 'tMsg', 'lOn', 'dMsg', 'lId', 'lTo', 'lTone', 'lSay',
-    'tDl', 'pickDir', 'lAsk', 'tPacks'];
+    'tDl', 'pickDir', 'lAsk', 'tPacks', 'gStore', 'lFresh', 'fresh', 'lWipe', 'wipe', 'dStore'];
   function labels() { LABELS.forEach(function (k) { $(k).textContent = T[k] || ''; }); document.title = T.h || 'Options'; Help.wire(T); }
   var fill = function (sel, opts, v) {   // its options, then its value (one it does not list is added, never lost)
     if (!opts.some(function (o) { return o[0] === v; }) && v != null) opts = opts.concat([[v, String(v)]]);
@@ -10,7 +10,7 @@
     if (sel.dataset.k !== key) { sel.textContent = ''; opts.forEach(function (o) { var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1]; if (o[2]) e.disabled = true; sel.appendChild(e); }); sel.dataset.k = key; }
     if (document.activeElement !== sel) sel.value = v;
   };
-  function say(r) { $('msg').className = r.ok ? 'ok' : 'err'; $('msg').textContent = r.ok ? (r.opened ? T.opened : r.shown ? T.shown : r.relaunched ? T.relaunched : T.saved) : (T[r.error] || r.error || 'error'); }
+  function say(r) { $('msg').className = r.ok ? 'ok' : 'err'; $('msg').textContent = r.ok ? (r.opened ? T.opened : r.shown ? T.shown : r.relaunched ? T.relaunched : r.cleaned ? T.cleaned : r.wiped ? T.wiped : r.kept ? '' : T.saved) : (T[r.error] || r.error || 'error'); }
   function paint(s) {
     if (s.t) { T = s.t; labels(); }
     fill($('ui'), (s.langs || []).map(function (l) { return [l.code, l.name]; }), s.lang);
@@ -62,6 +62,8 @@
   $('tone').addEventListener('change', function () { save(this.value === 'custom' ? { pickTone: true } : { msg: { tone: this.value } }); });
   $('say').addEventListener('change', function () { save({ msg: { say: this.value.trim() } }); });
   $('pickDir').addEventListener('click', function () { save({ pickDir: 1 }); });
+  $('fresh').addEventListener('click', function () { save({ fresh: 1 }); });
+  $('wipe').addEventListener('click', function () { save({ wipe: 1 }); });
   $('ask').addEventListener('change', function () { save({ downloads: { ask: this.checked } }); });
   load(); setInterval(load, 3000);   // a complement changes on its own (it starts, it fails)
 })();

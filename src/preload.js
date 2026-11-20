@@ -12,11 +12,12 @@ contextBridge.exposeInMainWorld('ScreenBridgeDesktop', {
     return frame().then(function () { return ipcRenderer.invoke('codex:capture'); }).finally(function () { h.forEach(function (e, i) { e.style.visibility = v[i]; }); });
   },
 });
-contextBridge.exposeInMainWorld('BodyBridgeDesktop', { shot: function (tab) { return ipcRenderer.invoke('codex:body', 'shot', { tabId: tab }); },
-  route: function (r, args) { return ipcRenderer.invoke('codex:body', 'route', { route: r, args: args }); } });
+contextBridge.exposeInMainWorld('BodyBridgeDesktop', { shot: function (tab, ch) { return ipcRenderer.invoke('codex:body', 'shot', { tabId: tab, ch: ch }); },
+  route: function (r, args, ch) { return ipcRenderer.invoke('codex:body', 'route', { route: r, args: args, ch: ch }); } });
 const share = function (op) { return function (a, b, c) { return ipcRenderer.invoke('codex:share', op, a, b, c); }; };
-const out = function (u) { ipcRenderer.send('codex:out', String(u || '')); };
-contextBridge.exposeInMainWorld('ShareBridgeDesktop', { shareUrl: share('url'), shareBase64: share('base64'), shareText: share('text'), openProvider: out, openExternal: out });
+const send = function (ch) { return function (u) { ipcRenderer.send(ch, String(u || '')); }; };
+contextBridge.exposeInMainWorld('ShareBridgeDesktop', { shareUrl: share('url'), shareBase64: share('base64'), shareText: share('text'),
+  openProvider: send('codex:tab'), openExternal: send('codex:out'), setSecure: function (on) { ipcRenderer.send('codex:secure', !!on); } });
 contextBridge.exposeInMainWorld('EyesBridgeDesktop', {
   screen: function () { return ipcRenderer.invoke('codex:eyes:screen', { data: 1, max: 1600 }); },
   camera: function () { return ipcRenderer.invoke('codex:eyes:camera', { data: 1, max: 1280 }); },

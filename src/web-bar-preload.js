@@ -4,4 +4,5 @@ contextBridge.exposeInMainWorld('WebBar', {
   words: ipcRenderer.sendSync('web:words'),
   go: (op, u) => ipcRenderer.send('web:bar', String(op), String(u || '')),
   on: (cb) => ipcRenderer.on('web:at', (_e, s) => cb(s)),
+  ai: (on) => ipcRenderer.invoke('web:ai', on === undefined ? null : !!on),   // the strip's switch (web-foot)
 });

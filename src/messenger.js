@@ -61,7 +61,7 @@ async function SEND(a) {
   var t = await (await fetch('/' + root + '/packages/Messaging/Controllers/pst_message_send.php', { method: 'POST', body: fd, credentials: 'same-origin' })).text();
   if (t === 'L') return { ok: false, error: 'session_expired' };
   var r; try { r = JSON.parse(t); } catch (e) { return { ok: false, error: 'bad_answer' }; }
-  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { StorageManager.saveMessage(String(a.to), r.message); window.Chat && Chat.checkLocalMessages && Chat.checkLocalMessages(); } catch (e) {}
+  if (r && r.ok && window.MsgSync && MsgSync.keepSent) MsgSync.keepSent(a.to, [r.message]);
   return r && r.ok ? { ok: true, message_id: r.message && r.message.id } : { ok: false, error: (r && r.error) || 'send_failed' };
 }
 async function MEDIA(a) {
@@ -80,7 +80,7 @@ async function MEDIA(a) {
   var t = await (await fetch('/' + root + a.endpoint, { method: 'POST', body: fd, credentials: 'same-origin' })).text();
   if (t === 'L') return { ok: false, error: 'session_expired' };
   var r; try { r = JSON.parse(t); } catch (e) { return { ok: false, error: 'bad_answer' }; }
-  if (r && r.ok && r.message && window.StorageManager && StorageManager.saveMessage) try { [r.text, r.message].forEach(function (m) { if (m) StorageManager.saveMessage(String(a.to), m); }); window.Chat && Chat.checkLocalMessages && Chat.checkLocalMessages(); } catch (e) {}   // its words first, as the server made them
+  if (r && r.ok && window.MsgSync && MsgSync.keepSent) MsgSync.keepSent(a.to, [r.text, r.message]);   // its words first, as the server made them
   return r && r.ok ? { ok: true, message_id: r.message && r.message.id } : { ok: false, error: (r && r.error) || 'send_failed' };
 }
 const run = (f, a) => wc.executeJavaScript('(' + f + ')(' + JSON.stringify(a) + ')', true);

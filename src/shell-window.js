@@ -2,6 +2,7 @@
 const { BaseWindow, WebContentsView, BrowserWindow, app, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const links = require('./links.js');
 
 const TOOLBAR_H = 40;                 // DIP; DEBE ser igual a titleBarOverlay.height
 const HINT_W = 460, HINT_H = 60, HINT = '<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}'
@@ -9,7 +10,7 @@ const HINT_W = 460, HINT_H = 60, HINT = '<!doctype html><meta charset="utf-8"><s
   + 'div{padding:11px 20px;border-radius:10px;background:rgba(16,16,20,.86);color:#f3f3f3;box-shadow:0 3px 12px rgba(0,0,0,.35);white-space:nowrap;max-width:calc(100% - 64px);overflow:hidden;text-overflow:ellipsis;animation:f 3.2s ease both}'
   + 'kbd{font:600 13px "Segoe UI",sans-serif;padding:3px 9px;margin:0 5px;border:1px solid rgba(255,255,255,.4);border-bottom-width:2px;border-radius:6px}'
   + '@keyframes f{0%{opacity:0;transform:translateY(-6px)}12%,78%{opacity:1;transform:none}100%{opacity:0}}</style><div>{t}</div>';
-const HOME = 'https://53on.com/?gp=dashboard_provider';   // el HOME real: el dashboard del proveedor, no el marketplace
+const HOME = 'https://53on.com/?gp=dashboard_provider', site = (u) => require('./i18n.js').site(u);   // el HOME real: el dashboard del proveedor, no el marketplace
 const RENDERER = path.join(__dirname, '..', 'renderer');
 let GLUE = '';
 try {
@@ -49,11 +50,36 @@ function createSplash() {
 function own(u) { try { return new URL(u).origin === 'https://53on.com'; } catch (_) { return false; } }
 function out(u) { if (/^https?:/i.test(u)) shell.openExternal(String(u)).catch(function () {}); }
 
-function isInternalHost(host) {
-  return /(^|\.)53on\.com$/i.test(host)
-      || /(^|\.)vcorpsllc\.com$/i.test(host)
-      || /(^|\.)google\.com$/i.test(host)          // login OAuth de Google
-      || /accounts\.google/i.test(host);
+function signIn(host) {
+  return /(^|\.)(53on|vcorpsllc|google|facebook)\.com$/i.test(host);
+}
+
+const bubbles = new WeakMap();
+function bubble(win, t, top) {
+  const was = bubbles.get(win);
+  if (was) was();
+  if (!t) return;
+  const v = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } });
+  const place = function () { const b = win.getContentBounds(); v.setBounds({ x: Math.max(0, Math.round((b.width - HINT_W) / 2)), y: top ? 28 : Math.max(0, b.height - HINT_H - 48), width: Math.min(HINT_W, b.width), height: HINT_H }); };
+  const end = function () { clearTimeout(tm); bubbles.delete(win); win.off('resize', place); try { win.contentView.removeChildView(v); v.webContents.close(); } catch (_) {} };
+  const tm = setTimeout(end, 3200);
+  v.setBackgroundColor('#00000000'); win.contentView.addChildView(v); place(); win.on('resize', place); bubbles.set(win, end);
+  v.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(HINT.replace('{t}', () => t)));
+}
+function immersive(win, relayout) {
+  const psb = require('electron').powerSaveBlocker;
+  let on = false, full = false, lit = null;
+  const off = function () { on = false; relayout(); if (lit !== null) psb.stop(lit); lit = null; bubble(win); };
+  const set = function (v) {
+    if (!!v === on) return;
+    if (!v) { off(); return win.setFullScreen(full); }
+    full = win.isFullScreen(); on = true; win.setFullScreen(true); relayout();
+    lit = psb.start('prevent-display-sleep');
+    bubble(win, require('./i18n.js').__('fs.exit', { key: '<kbd>Esc</kbd>' }), true);
+  };
+  win.on('leave-full-screen', function () { if (on) { full = false; off(); } });   // the system took it away (or F11 left it)
+  win.on('closed', function () { if (lit !== null) psb.stop(lit); });
+  return { set: set, is: function () { return on; }, escape: function () { if (!on) return false; set(false); return true; } };
 }
 
 const BAR_H = 32, extras = new Map();   // key → its window: one window per page, so a second click brings it back
@@ -123,23 +149,35 @@ function apartView(key, vp, size, b) {
     ...(process.platform !== 'darwin' ? { titleBarOverlay: { color: c.bg, symbolColor: c.fg, height: BAR_H } } : {}) }, spot(key, size)));
   if (spots[key] && spots[key].max && !(size && size.show === false)) w.maximize();   // a hidden one stays hidden (maximize shows)
   keep(key, w);
-  const wp = { contextIsolation: true, sandbox: true }, bar = new WebContentsView({ webPreferences: Object.assign({}, wp, b ? { preload: path.join(__dirname, b.preload) } : {}) }), view = new WebContentsView({ webPreferences: Object.assign({}, wp, vp) });
-  wear(w, [view, bar], [bar.webContents]);
-  w.contentView.addChildView(view); w.contentView.addChildView(bar);
-  const fit = function () { const b = w.getContentBounds(); bar.setBounds({ x: 0, y: 0, width: b.width, height: BAR_H }); view.setBounds({ x: 0, y: BAR_H, width: b.width, height: Math.max(0, b.height - BAR_H) }); };
+  const wp = { contextIsolation: true, sandbox: true }, bp = { webPreferences: Object.assign({}, wp, b ? { preload: path.join(__dirname, b.preload) } : {}) }, bar = new WebContentsView(bp), view = new WebContentsView({ webPreferences: Object.assign({}, wp, vp) });
+  const ft = b && b.foot ? new WebContentsView(bp) : null, fw = ft ? [ft.webContents] : [];
+  wear(w, [view, bar].concat(ft || []), [bar.webContents].concat(fw));
+  w.contentView.addChildView(view); w.contentView.addChildView(bar); if (ft) w.contentView.addChildView(ft);
+  const g = b && b.game ? immersive(w, function () { fit(); }) : null;   // a game's: Esc and Alt+Enter as the main one's
+  const fit = function () {
+    const c = w.getContentBounds(), f = ft && b.foot.on() ? b.foot.h : 0, top = g && g.is() ? 0 : BAR_H;
+    bar.setBounds({ x: 0, y: 0, width: c.width, height: top }); view.setBounds({ x: 0, y: top, width: c.width, height: Math.max(0, c.height - top - f) });
+    if (ft) { ft.setBounds({ x: 0, y: c.height - f, width: c.width, height: f }); ft.setVisible(!!f); }
+  };
+  if (g) view.webContents.on('before-input-event', function (e, i) {
+    if (i.type === 'keyDown' && (i.key === 'Escape' ? g.escape() : i.alt && i.key === 'Enter' && (g.set(!g.is()), true))) e.preventDefault();
+  });
   fit(); ['resize', 'maximize', 'unmaximize', 'restore'].forEach(function (ev) { w.on(ev, fit); });
   bar.webContents.loadFile(path.join(RENDERER, b ? b.file : 'bar.html'));
-  view.webContents.on('page-title-updated', function (e, t) { w.setTitle(t || '53ON'); });   // the taskbar names it
+  if (ft) ft.webContents.loadFile(path.join(RENDERER, b.foot.file));
+  const name = b && b.title;
+  if (name) w.setTitle(name);
+  view.webContents.on('page-title-updated', function (e, t) { w.setTitle(title(name, t)); });   // the taskbar names it
   extras.set(key, w);
-  w.on('closed', function () { extras.delete(key); try { view.webContents.close(); bar.webContents.close(); } catch (_) {} });
-  view.win = w; view.bar = bar.webContents;
+  w.on('closed', function () { extras.delete(key); try { view.webContents.close(); bar.webContents.close(); fw.forEach(function (x) { x.close(); }); } catch (_) {} });
+  view.win = w; view.bar = bar.webContents; view.foot = fw[0]; view.fit = fit; if (g) view.immersive = g.set;
   return view;
 }
 function extra(url, opens) {
   const view = apartView(url);
   if (!view) return;
   view.webContents.setWindowOpenHandler(opens);
-  view.webContents.loadURL(url);
+  view.webContents.loadURL(site(url));   // its key (its place, its one window) stays the bare address
   view.webContents.on('did-finish-load', function () { view.webContents.insertCSS('#mmenu{display:none!important}#mz-search-wrap{padding-left:0!important}').catch(function () {}); });
 }
 function local(file, preload, size) {
@@ -185,12 +223,7 @@ function build() {
   win.contentView.addChildView(web);         // 53on (grande) PRIMERO
   win.contentView.addChildView(toolbar);     // la barra ULTIMA = pintada encima (orden = z-order, #42061)
 
-  let immersive = false, wasFull = false, hint = null, hintT = 0, hintTop = false, lit = null;
-  function light(on) {
-    const psb = require('electron').powerSaveBlocker;
-    if (on && lit === null) lit = psb.start('prevent-display-sleep');
-    else if (!on && lit !== null) { psb.stop(lit); lit = null; }
-  }
+  const imm = immersive(win, function () { layout(); });   // the game's full screen, shared (immersive())
   const SB = 22, pk = load().panel || {};
   let pOn = !!pk.on, pOpen = pOn && !!pk.open, pH = +pk.h || 260, panel = null, dragging = false;
   const fitH = function (h, all) { return Math.round(Math.max(80, Math.min(h, all - 120))); };
@@ -213,6 +246,7 @@ function build() {
     if (!pOn) { pOpen = dragging = false; web.webContents.focus(); }
     if (pOn || panel) pane().webContents.send('panel:state', pOpen);
     layout(); note();
+    require('./browse').foot();   // the body's browser windows show their own strip with it
     return pOn;
   }
   function toggle(on, tab) {
@@ -231,47 +265,17 @@ function build() {
     layout();
   }
   function layout() {
-    const b = win.getContentBounds(), top = immersive ? 0 : TOOLBAR_H, all = Math.max(0, b.height - top);   // DIP; NO multiplicar por scaleFactor
-    const sb = immersive || !pOn ? 0 : SB, ph = pOpen && sb ? fitH(pH, all - sb) : 0;
+    const b = win.getContentBounds(), top = imm.is() ? 0 : TOOLBAR_H, all = Math.max(0, b.height - top);   // DIP; NO multiplicar por scaleFactor
+    const sb = imm.is() || !pOn ? 0 : SB, ph = pOpen && sb ? fitH(pH, all - sb) : 0;
     toolbar.setBounds({ x: 0, y: 0, width: top ? b.width : 0, height: top });
     web.setBounds({ x: 0, y: top, width: b.width, height: all - sb - ph });
     if (panel) { panel.setVisible(!!sb); if (sb) panel.setBounds(dragging ? { x: 0, y: top, width: b.width, height: all } : { x: 0, y: top + all - sb - ph, width: b.width, height: ph + sb }); }
-    if (hint) hint.setBounds({ x: Math.max(0, Math.round((b.width - HINT_W) / 2)), y: hintTop ? 28 : Math.max(0, b.height - HINT_H - 48), width: Math.min(HINT_W, b.width), height: HINT_H });
   }
   if (pOn) pane();
   layout();   // inicial, no solo en 'resize'
   ['resize', 'maximize', 'unmaximize', 'leave-full-screen'].forEach(function (ev) { win.on(ev, layout); });
   function repaint() { layout(); [web, toolbar].forEach(function (v) { if (!v.webContents.isDestroyed()) v.webContents.invalidate(); }); }
   ['restore', 'show'].forEach(function (ev) { win.on(ev, repaint); });
-  function setImmersive(on) {
-    on = !!on;
-    if (on === immersive) return;
-    if (on) wasFull = win.isFullScreen();
-    immersive = on;
-    win.setFullScreen(on || wasFull);
-    layout();
-    light(on);
-    if (on) say(); else unsay();
-  }
-  win.on('leave-full-screen', function () { if (immersive) { immersive = wasFull = false; layout(); light(false); unsay(); } });
-  function escape() { if (!immersive) return false; setImmersive(false); return true; }
-  function say() { toast(require('./i18n.js').__('fs.exit', { key: '<kbd>Esc</kbd>' }), true); }
-  function toast(t, top) {
-    unsay();
-    hint = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true } });
-    hint.setBackgroundColor('#00000000');
-    hintTop = !!top;
-    win.contentView.addChildView(hint);
-    layout();
-    hint.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(HINT.replace('{t}', () => t)));
-    hintT = setTimeout(unsay, 3200);
-  }
-  function unsay() {
-    clearTimeout(hintT);
-    if (!hint) return;
-    try { win.contentView.removeChildView(hint); hint.webContents.close(); } catch (_) {}
-    hint = null;
-  }
 
   toolbar.webContents.loadFile(path.join(RENDERER, 'toolbar.html'));
 
@@ -281,18 +285,54 @@ function build() {
   ses.setPermissionRequestHandler(function (wc, perm, cb, d) { cb(free(perm) || mine(d && d.requestingUrl)); });
   ses.setPermissionCheckHandler(function (wc, perm, origin) { return free(perm) || mine(origin); });
   applyCorsHeaders(ses);
-  ses.cookies.set({ url: 'https://53on.com', name: 'DEVICE', value: 'avatarwin64', secure: true, httpOnly: false, sameSite: 'lax' })
-    .then(function () { web.webContents.loadURL(HOME); }, function () { web.webContents.loadURL(HOME); });
+  home(web.webContents);
 
   function opens(d) {
-    try { if (d.disposition === 'new-window' && isInternalHost(new URL(d.url).hostname)) return { action: 'allow' }; } catch (_) {}
-    out(d.url);
+    try { if (d.disposition === 'new-window' && signIn(new URL(d.url).hostname)) return { action: 'allow' }; } catch (_) {}
+    send(d.url);
     return { action: 'deny' };
   }
+  function send(u) { const r = links.route(u); if (r === 'tab') tab(u); else if (r === 'view') toView(u); else out(u); }
+  function toView(u) { if (api.hand) api.hand(u); else web.webContents.loadURL(site(u)); }
   web.webContents.setWindowOpenHandler(opens);
-  const stay = function (e) { if (e.isMainFrame !== false && /^(https?|file):/i.test(e.url) && !own(e.url)) { e.preventDefault(); out(e.url); } };
+  const stay = function (e) {
+    if (e.isMainFrame === false || !/^(https?|file):/i.test(e.url)) return;
+    const r = links.route(e.url);
+    if (r === 'view') return;
+    e.preventDefault();
+    if (r === 'tab') tab(e.url); else out(e.url);
+  };
   web.webContents.on('will-navigate', stay);
   web.webContents.on('will-redirect', stay);
+
+  let tabV = null;
+  function tab(u) {
+    if (u[0] === '/') u = 'https://53on.com' + u;
+    if (links.route(u) !== 'tab') return send(u);
+    u = site(/[?&]embed=1(&|$)/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'embed=1');
+    if (!tabV) {
+      tabV = apartView('tab', { preload: path.join(__dirname, 'tab-preload.js') });
+      if (!tabV) return;
+      const wc = tabV.webContents, nav = function (e) {
+        if (e.isMainFrame === false) return;
+        const r = links.route(e.url);
+        if (r === 'tab') return;
+        e.preventDefault();
+        if (r === 'view') back(e.url); else out(e.url);
+      };
+      wc.on('will-navigate', nav);
+      wc.on('will-redirect', nav);
+      wc.setWindowOpenHandler(function (d) {
+        try { if (d.disposition === 'new-window' && signIn(new URL(d.url).hostname)) return { action: 'allow' }; } catch (_) {}
+        if (links.route(d.url) === 'view') back(d.url); else send(d.url);
+        return { action: 'deny' };
+      });
+      tabV.win.on('closed', function () { tabV = null; });
+    } else { if (tabV.win.isMinimized()) tabV.win.restore(); tabV.win.focus(); }
+    tabV.webContents.loadURL(u);
+  }
+  function closeTab() { const t = tabV; if (t) setImmediate(function () { try { t.win.close(); } catch (_) {} }); }
+  function back(u) { closeTab(); if (win.isMinimized()) win.restore(); win.focus(); if (u) toView(u); }
   win.on('closed', function () { extras.forEach(function (w) { try { w.destroy(); } catch (_) {} }); });   // they leave with the main one
 
   const splash = createSplash();
@@ -370,10 +410,22 @@ function build() {
   win.on('focus', function () { if (!toolbar.webContents.isDestroyed()) toolbar.webContents.send('shell:focus', true); });
   win.on('blur', function () { if (!toolbar.webContents.isDestroyed()) toolbar.webContents.send('shell:focus', false); });
 
-  return { win: win, web: web, toolbar: toolbar, layout: layout, pushNav: pushNav, TOOLBAR_H: TOOLBAR_H, HOME: HOME,
-    immersive: setImmersive, isImmersive: function () { return immersive; }, escape: escape, toast: toast,
+  const api = { win: win, web: web, toolbar: toolbar, layout: layout, pushNav: pushNav, TOOLBAR_H: TOOLBAR_H, HOME: HOME,
+    immersive: imm.set, isImmersive: imm.is, escape: imm.escape, toast: function (t, top) { bubble(win, t, top); },
     panel: { toggle: toggle, bar: bar, drag: drag, on: function () { return pOn; }, open: function () { return pOpen; }, wc: function () { return panel && panel.webContents; } },
-    extra: function (url) { return extra(url || web.webContents.getURL() || HOME, opens); }, local: local };
+    extra: function (url) { return extra(url || web.webContents.getURL() || HOME, opens); }, local: local,
+    tab: tab, tabWc: function () { return tabV && tabV.webContents; }, tabSecure: function (on) { if (tabV) tabV.win.setContentProtection(on); }, back: back, hand: null };
+  return api;
 }
 
-module.exports = { build: build, local: local, apartView: apartView, zoom: zoom, accent: accent, theme: theme, applyCorsHeaders: applyCorsHeaders, TOOLBAR_H: TOOLBAR_H, HOME: HOME };
+function title(name, t) {
+  const page = String(t || '').replace(/^\s*53on\s*[·|:\-–—]\s*|\s*[·|:\-–—]\s*53on\s*$|^\s*53on\s*$/gi, '').trim();
+  return [name, page].filter(Boolean).join(' · ') || '53ON';
+}
+
+function home(wc) {
+  const go = function () { wc.loadURL(site(HOME)); };
+  return wc.session.cookies.set({ url: 'https://53on.com', name: 'DEVICE', value: 'avatarwin64', secure: true, httpOnly: false, sameSite: 'lax' }).then(go, go);
+}
+
+module.exports = { build: build, local: local, extra: extra, apartView: apartView, zoom: zoom, accent: accent, theme: theme, applyCorsHeaders: applyCorsHeaders, home: home, title: title, TOOLBAR_H: TOOLBAR_H, HOME: HOME };

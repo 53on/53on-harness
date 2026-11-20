@@ -44,7 +44,9 @@ function atView(e) { try { return e.sender === S.web.webContents && e.senderFram
 function atBar(e) { return !!S && e.sender === S.toolbar.webContents; }
 function atOptions(e) { try { const u = new URL(e.senderFrame.url); return u.protocol === 'file:' && /\/renderer\/options\.html$/.test(u.pathname); } catch (_) { return false; } }
 function atPage(e) { try { return e.senderFrame === e.sender.mainFrame && new URL(e.senderFrame.url).origin === 'https://53on.com'; } catch (_) { return false; } }
-const view = gate(atView), bar = gate(atBar), opts = gate(atOptions), page = gate(atPage), pane = gate(atPanel);
+function atTab(e) { try { return !!S && e.sender === S.tabWc() && e.senderFrame === e.sender.mainFrame && new URL(e.senderFrame.url).origin === 'https://53on.com'; } catch (_) { return false; } }
+const view = gate(atView), bar = gate(atBar), opts = gate(atOptions), page = gate(atPage), pane = gate(atPanel), tabs = gate(atTab);
+function ext(u) { if (/^https?:\/\//i.test(u)) require('electron').shell.openExternal(u).catch(function () {}); }
 function atPanel(e) { return !!(S && S.panel) && e.sender === S.panel.wc() && e.senderFrame === e.sender.mainFrame; }
 view.handle = (function (h) { return function (ch, f) { h(ch, /^codex:(shell:exec|fs:|search:|jobs:|open$)/.test(ch) ? require('./audit').wrap(ch, f) : f); }; })(view.handle);
 app.on('web-contents-created', function (e, wc) { wc.on('will-attach-webview', function (ev) { ev.preventDefault(); }); });
@@ -65,6 +67,22 @@ function askOwner(cmd, verdict) {
   const r = (S && S.win) ? dialog.showMessageBoxSync(S.win, opts) : dialog.showMessageBoxSync(opts);
   if (r === 2 && !verdict.danger) { try { require('./allowlist').allow(cmd); } catch (e) {} }
   return r === 1 || r === 2;
+}
+
+function askScreen() {
+  const al = require('./allowlist'), __ = require('./i18n.js').__;
+  if (require('./mode').get() === 'bypass' || al.isAllowed('@screen')) return Promise.resolve(true);
+  if (S && S.bell) S.bell(__('ask.screen'), __('ask.screenb'));
+  return dialog.showMessageBox(S.win, { type: 'question', buttons: [__('dlg.cancel'), __('ask.allow'), __('ask.always')], defaultId: 1, cancelId: 0,
+    title: __('ask.screen'), message: __('ask.screenb') }).then(function (r) { if (r.response === 2) al.allow('@screen'); return r.response > 0; });
+}
+
+function askArnes() {
+  const al = require('./allowlist'), __ = require('./i18n.js').__;
+  if (require('./mode').get() === 'bypass' || al.isAllowed('@arnes')) return Promise.resolve(true);
+  if (S && S.bell) S.bell(__('ask.arnes'), __('ask.arnesb'));
+  return dialog.showMessageBox(S.win, { type: 'question', buttons: [__('dlg.cancel'), __('ask.allow'), __('ask.always')], defaultId: 1, cancelId: 0,
+    title: __('ask.arnes'), message: __('ask.arnesb') }).then(function (r) { if (r.response === 2) al.allow('@arnes'); return r.response > 0; });
 }
 
 function zoomWeb(delta) {
@@ -92,6 +110,7 @@ function popupAppMenu() {
     { label: __('menu.fullscreen'), accelerator: 'F11', click: function () { S.win.setFullScreen(!S.win.isFullScreen()); } },
     { label: __('menu.immersive'), accelerator: 'Alt+Enter', click: function () { S.immersive(true); } },
     { label: __('menu.panel'), accelerator: 'Ctrl+J', type: 'checkbox', checked: S.panel.on(), click: function () { S.panel.bar(); } },   // the status bar; the panel opens touching it
+    { label: __('menu.browser'), click: function () { openBody().then(function (r) { if (!r.ok) toast('options.' + (/^(browser_off|window_hidden)$/.test(r.error) ? r.error : 'no_body'), ''); }); } },   // the body's browser, in front
     { label: __('menu.maps'), click: function () { apart('/?gp=memory_map&direct'); } },   // the memory live beside the chat, for everyone; direct: the map alone, no home behind it
     { label: __('menu.options'), click: function () { S.local('options.html', 'options-preload.js', { width: 600, height: 680, minWidth: 400, minHeight: 440 }); } },   // what `53on config` sets, by hand
   ];
@@ -130,7 +149,7 @@ function popupAppMenu() {
 }
 function apart(p) { S.extra('https://53on.com' + p); }
 function openStore(p) {
-  const wc = S.web.webContents, url = 'https://53on.com' + p;
+  const wc = S.web.webContents, url = require('./i18n.js').site(p);
   let at = '';
   try { at = new URL(wc.getURL()).origin; } catch (_) {}
   if (at !== 'https://53on.com') return wc.loadURL(url);
@@ -148,6 +167,10 @@ function pageVerb(id, q) {
 }
 
 const BODY = '53on-body';
+function openBody() {
+  return fetch('http://127.0.0.1:' + ((require('./packs').specOf(BODY) || {}).port || 7531) + '/open', { method: 'POST', signal: AbortSignal.timeout(60000) })
+    .then(function (x) { return x.json(); }).catch(function () { return { ok: false, error: 'no_body' }; });
+}
 function wireOptions() {
   const card = async function () {
     const g = require('./settings').get(), packs = require('./packs'), mode = require('./mode'), s = packs.state('53on-ear'), ear = { installed: !!s, on: !!s && !s.off };
@@ -175,7 +198,7 @@ function wireOptions() {
       if (!i18n.lang(rest.lang)) return fail('value_bad', 'lang');
       delete rest.lang;
       try { S.toolbar.webContents.reload(); } catch (_) {}
-      try { S.web.webContents.loadURL('https://53on.com/?gp=dashboard_provider&language=' + i18n.__('site')); } catch (_) {}   // home
+      try { S.web.webContents.loadURL(i18n.site(S.HOME)); } catch (_) {}   // home
     }
     if ('zoom' in rest) { if (typeof rest.zoom !== 'number') return fail('value_bad', 'zoom'); require('./shell-window.js').zoom(rest.zoom); delete rest.zoom; }
     if ('accent' in rest) { if (!require('./shell-window.js').accent(rest.accent)) return fail('value_bad', 'accent'); delete rest.accent; try { S.toolbar.webContents.reload(); } catch (_) {} if (S.tint) S.tint(require('./shell-window.js').accent()); }
@@ -187,16 +210,25 @@ function wireOptions() {
       if (!r.ok) return fail(packs.code(r.error), 'pack');
       delete rest.pack;
     }
+    if ('fresh' in rest) { if (!S.fresh) return fail('no_view', 'fresh'); await S.fresh(true); return Object.assign(await card(), { cleaned: true }); }
+    if ('wipe' in rest) {
+      const t = require('./i18n.js').bag('options');
+      const r = await dialog.showMessageBox(S.win, { type: 'warning', title: t.wipeT, message: t.wipeT, detail: t.wipeM, buttons: [t.wipeNo, t.wipeYes], defaultId: 0, cancelId: 0, noLink: true });
+      if (r.response !== 1) return Object.assign(await card(), { kept: true });
+      const wc = S.web.webContents;
+      await Promise.all([wc.session.clearStorageData(), wc.session.clearCache(), require('./view-cache.js').clear()]);
+      await require('./shell-window.js').home(wc);
+      return Object.assign(await card(), { wiped: true });
+    }
     if ('ai' in rest) { openStore('/?gp=loader_card'); return Object.assign(await card(), { shown: true }); }
     if ('look' in rest) {
       const v = rest.look; if (!['auto', 'light', 'dark'].includes(v)) return fail('value_bad', 'look');
       if (!await askPage("(function (v) { ConfigStore.set('theme', v); if (typeof ConfigManager !== 'undefined') ConfigManager.applyTheme(); return 1; })(" + JSON.stringify(v) + ')')) return fail('no_view', 'look');
       delete rest.look;
     }
-    if ('theme' in rest) { S.web.webContents.loadURL('https://53on.com/m?v=settings'); return Object.assign(await card(), { shown: true }); }
+    if ('theme' in rest) { S.web.webContents.loadURL(require('./i18n.js').site('/m?v=settings')); return Object.assign(await card(), { shown: true }); }
     if ('open' in rest) {
-      const r = await fetch('http://127.0.0.1:' + ((require('./packs').specOf(BODY) || {}).port || 7531) + '/open', { method: 'POST', signal: AbortSignal.timeout(60000) })
-        .then(function (x) { return x.json(); }).catch(function () { return { ok: false, error: 'no_body' }; });
+      const r = await openBody();
       if (!r.ok) return fail(r.error || 'no_body', 'open');
       return Object.assign(await card(), { opened: true });
     }
@@ -311,7 +343,7 @@ function wireKeyboard(web) {
     else if (mod && (k === '+' || k === '=')) { e.preventDefault(); zoomWeb(+1); }
     else if (mod && k === '-') { e.preventDefault(); zoomWeb(-1); }
     else if (mod && k === '0') { e.preventDefault(); zoomWeb(0); }
-    else if (mod && k === 'r' && !input.shift) { e.preventDefault(); web.reload(); }
+    else if (k === 'f5' || k === 'f12' || (mod && (k === 'r' || k === 'u' || k === 'p' || (input.shift && (k === 'i' || k === 'c'))))) e.preventDefault();
   });
 }
 function wireContextMenu(web) {
@@ -343,7 +375,7 @@ function wirePanel() {
     if (!S.win.isFocused()) { const x = new (require('electron').Notification)({ title: n.title, body: n.body }); x.on('click', function () { tap(n.tag); }); x.show(); S.win.flashFrame(true); }
   };
   view.on('codex:notify', function (e, t, b, tag) { S.bell(t, b, tag); });
-  view.on('codex:out', function (e, u) { if (/^https?:\/\//i.test(u)) require('electron').shell.openExternal(u).catch(function () {}); });   // a link the page sends out: the default browser
+  view.on('codex:out', function (e, u) { ext(u); });
   pane.on('panel:note', function (e, tag) { tap(String(tag || '')); });
   pane.on('panel:notes', function (e, clear) { if (clear) notes.length = 0; unread = 0; tell(); });   // the bell opened (read) or cleared
   pane.handle('panel:watch', function (e) { paneWc = e.sender; return Object.assign({ ring: audit.watch(e.sender), words: words, open: S.panel.open(), notes: notes, unread: unread, accent: require('./shell-window.js').accent() }, now()); });
@@ -351,10 +383,6 @@ function wirePanel() {
   pane.handle('panel:refresh', now);
   pane.on('panel:drag', function (e, on, h) { S.panel.drag(on, h); });
   pane.on('panel:toggle', function (e, on) { S.panel.toggle(on); });
-  S.web.webContents.on('console-message', function (e, level, message, line, src) {
-    const L = { verbose: 0, debug: 0, info: 1, warning: 2, error: 3 }, l = e && e.level !== undefined ? e.level : level;
-    audit.log(typeof l === 'string' ? (L[l] || 0) : +l || 0, e && e.message !== undefined ? e.message : message, (e && e.sourceId !== undefined ? e.sourceId : src) + ':' + (e && e.lineNumber !== undefined ? e.lineNumber : line));
-  });
 }
 
 function askPage(js) {
@@ -364,17 +392,44 @@ function askPage(js) {
   return Promise.race([wc.executeJavaScript(js, true), new Promise(function (r) { t = setTimeout(r, 2000, null); })])
     .catch(function () { return null; }).finally(function () { clearTimeout(t); });
 }
+function toBody(p, data, sec) {
+    const d = data ? JSON.stringify(data) : '', port = (require('./packs').specOf(BODY) || {}).port || 7531, h = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(d) };
+    if (/^[\w-]{1,64}$/.test(sec || '')) h['X-Section'] = sec;
+    return new Promise(function (ok) {
+      const q = require('http').request({ host: '127.0.0.1', port: port, path: p, method: data ? 'POST' : 'GET', timeout: 30000, headers: h }, function (r) {
+        let s = ''; r.on('data', function (c) { s += c; }); r.on('end', function () { try { ok(JSON.parse(s)); } catch (_) { ok({ ok: false, error: 'body_bad' }); } });
+      });
+      q.on('error', function () { ok({ ok: false, error: 'no_body' }); });
+      q.on('timeout', function () { q.destroy(); ok({ ok: false, error: 'timeout' }); });
+      q.end(d);
+    });
+}
 function wireIpc() {
-  const goHome = function (then) {
+  const site = require('./i18n.js').site, goHome = function (then) {
     const wc = S.web.webContents, after = function () { if (then) wc.executeJavaScript(then).catch(function () {}); };
     wc.executeJavaScript(GO_HOME_JS)
-      .then(function (r) { if (r !== 'reload') return after(); wc.once('did-finish-load', after); wc.loadURL(S.HOME); })
-      .catch(function () { wc.loadURL(S.HOME); });   // nothing loaded yet
+      .then(function (r) { if (r !== 'reload') return after(); wc.once('did-finish-load', after); wc.loadURL(site(S.HOME)); })
+      .catch(function () { wc.loadURL(site(S.HOME)); });   // nothing loaded yet
   };
   bar.on('nav:home', function () { goHome(); });
   bar.on('nav:messages', function () {
     const wc = S.web.webContents;
-    wc.executeJavaScript(GO_MSGS_JS).then(function (r) { if (r === 'load') wc.loadURL('https://53on.com/m'); }, function () { wc.loadURL('https://53on.com/m'); });
+    wc.executeJavaScript(GO_MSGS_JS).then(function (r) { if (r === 'load') wc.loadURL(site('/m')); }, function () { wc.loadURL(site('/m')); });
+  });
+  const links = require('./links.js');
+  S.hand = function (u) { let x; try { x = new URL(u, 'https://53on.com'); } catch (_) { return; } if (x.origin === 'https://53on.com') openStore(x.pathname + x.search + x.hash); };
+  view.on('codex:tab', function (e, u) { S.tab(u); });
+  view.on('codex:secure', function (e, on) { S.win.setContentProtection(!!on); });
+  tabs.on('tab:do', function (e, op, a) {
+    if (op === 'out') return ext(a);
+    if (op === 'secure') return S.tabSecure(a === 'true');
+    if (op === 'share') { require('electron').clipboard.writeText(a); return toast('share.text'); }
+    if (op === 'url') { const r = links.route(a); return r === 'tab' ? S.tab(a) : r === 'view' ? S.back(a) : ext(a); }
+    S.back('');   // closeTab, and the chat and the inbox: the main window comes up
+    if (op !== 'chat' && op !== 'msgs') return;
+    const id = op === 'chat' ? Math.max(0, parseInt(a) || 0) : 0;
+    S.web.webContents.executeJavaScript('(function(u){' + SHUT_AI + 'if(window.SPA&&SPA.openMessages){u?SPA.openMessages(u):SPA.openMessages();}else location.href='
+      + JSON.stringify(site('/m')) + "+(u?'&id='+u:'');})(" + id + ')').catch(function () {});
   });
   bar.on('nav:ai', function () { S.disk.write('Chat/max', '1'); const h = function () { goHome(OPEN_CHAT_JS); }; S.web.webContents.executeJavaScript(OPEN_AI_JS).then(function (r) { if (r === 'none') h(); }, h); });
   bar.on('app:fullscreen-toggle', function () { S.win.setFullScreen(!S.win.isFullScreen()); });
@@ -393,6 +448,7 @@ function wireIpc() {
     if (clean) { await Promise.all([wc.session.clearCache(), require('./view-cache.js').clear()]); wc.reloadIgnoringCache(); } else wc.reload();
     return { ok: true, clean: !!clean };
   };
+  S.fresh = freshView;   // Options › Clear and reload, the same native
   view.handle('codex:cache:clear', function () { return freshView(true); });
   view.on('codex:theme', function (e, t) { require('./shell-window.js').theme(t); });   // 53ON's theme: its frame follows
   view.on('codex:immersive', function (e, h) { S.immersive(h); });
@@ -411,17 +467,6 @@ function wireIpc() {
   view.handle('codex:eyes:camera', function (e, o) { return require('./eyes').camera(o || {}); });
   view.handle('codex:eyes:cameras', function () { return require('./eyes').cameras(); });
   view.handle('codex:capture', function (e) { return e.sender.capturePage().then(function (i) { return 'data:image/jpeg;base64,' + i.toJPEG(85).toString('base64'); }); });
-  const toBody = function (p, data) {
-    const d = data ? JSON.stringify(data) : '', port = (require('./packs').specOf(BODY) || {}).port || 7531;
-    return new Promise(function (ok) {
-      const q = require('http').request({ host: '127.0.0.1', port: port, path: p, method: data ? 'POST' : 'GET', timeout: 30000, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(d) } }, function (r) {
-        let s = ''; r.on('data', function (c) { s += c; }); r.on('end', function () { try { ok(JSON.parse(s)); } catch (_) { ok({ ok: false, error: 'body_bad' }); } });
-      });
-      q.on('error', function () { ok({ ok: false, error: 'no_body' }); });
-      q.on('timeout', function () { q.destroy(); ok({ ok: false, error: 'timeout' }); });
-      q.end(d);
-    });
-  };
   const PIPE = { goto: 'POST', page: 'POST', tap: 'POST', type: 'POST', key: 'POST', hover: 'POST', drag: 'POST', longpress: 'POST', swipe: 'POST', slide: 'POST', pinch: 'POST', exists: 'POST', visible: 'POST', await: 'POST', 'wait-state': 'POST', console: 'GET', wheel: 'POST', read_page: 'POST', form_input: 'POST', scroll_to: 'POST', tabs: 'GET', tab_new: 'POST', tab_close: 'POST', network: 'GET' };
   view.handle('codex:share', async function (e, op, a, b, c) {
     let f = '';
@@ -440,7 +485,7 @@ function wireIpc() {
   view.handle('codex:body', async function (e, op, a) {
     a = a || {};
     if (op === 'shot') {
-      const r = await toBody('/screenshot' + (+a.tabId > 1 ? '?tabId=' + +a.tabId : ''));   // the AI's tab, vscodex's tabId
+      const r = await toBody('/screenshot' + (+a.tabId > 1 ? '?tabId=' + +a.tabId : ''), null, a.ch);   // the AI's tab, vscodex's tabId, in her section's window
       if (!r.ok) return r;
       const i = nativeImage.createFromPath(r.file), z = i.getSize();
       return { ok: !i.isEmpty(), image: 'data:image/jpeg;base64,' + i.toJPEG(80).toString('base64'), w: z.width, h: z.height };
@@ -448,7 +493,7 @@ function wireIpc() {
     if (op === 'route') {
       const r = String(a.route || ''), m = PIPE[r], q = a.args && typeof a.args === 'object' ? a.args : {};
       if (!m) return { ok: false, error: 'route_bad', routes: Object.keys(PIPE) };
-      return m === 'GET' ? toBody('/' + r + '?' + new URLSearchParams(q)) : toBody('/' + r, q);
+      return m === 'GET' ? toBody('/' + r + '?' + new URLSearchParams(q), null, a.ch) : toBody('/' + r, q, a.ch);
     }
     return { ok: false, error: 'op_bad' };
   });
@@ -603,8 +648,8 @@ function wireIpc() {
 }
 
 const SHUT_AI = 'window.pteToggleAI&&pteToggleAI(false);';
-const SHUT_MSGS = "var h=document.querySelector('.ch-home-btn');if(h&&h.offsetParent)h.click();";
-const GO_HOME_JS = "(function(){" + SHUT_AI + SHUT_MSGS + "if(location.pathname==='/'&&/[?&]gp=dashboard_provider(&|$)/.test(location.search))return 'here';if(!window.spaGo)return 'reload';try{spaGo('/?gp=dashboard_provider');return 'ok';}catch(e){return 'reload';}})()";
+const SHUT_MSGS = "var w=document.getElementById('webMsg');if(w&&w.style.display==='block'&&window.SPA&&SPA.back)SPA.back();";
+const GO_HOME_JS = "(function(){" + SHUT_AI + SHUT_MSGS + "if(location.pathname==='/m'&&!document.getElementById('webMsg'))return 'reload';if(location.pathname==='/'&&/[?&]gp=dashboard_provider(&|$)/.test(location.search))return 'here';if(!window.spaGo)return 'reload';try{spaGo('/?gp=dashboard_provider');return 'ok';}catch(e){return 'reload';}})()";
 
 const GO_MSGS_JS = "(function(){" + SHUT_AI + "var o=document.querySelector('.ch-home-btn');if(location.pathname==='/m'||(o&&o.offsetParent))return 'here';var b=document.getElementById('azInboxBtn');if(b){b.click();return 'ok';}return 'load';})()";
 const OPEN_AI_JS =
@@ -623,6 +668,7 @@ function startComplements() {
 
 function boot() {
   S = shellWindow.build();
+  require('./eyes').guard(askScreen);   // the whole screen asks its owner (askScreen), whoever looks
   S.win.on('closed', function () { try { require('./overlay').close(); } catch (_) {} try { require('./eyes').close(); } catch (_) {} try { require('./bodyd').haltAll(); } catch (_) {} });
   try { require('./membio').watch(S.web.webContents.session); } catch (_) {}   // the MemoriaBios engine a complement declares is the one this view loads
   require('./update').start(S);            // primer chequeo a los 90 s, luego cada hora ±10 min
@@ -631,7 +677,7 @@ function boot() {
   require('./bodyd').page = pageVerb;   // the MemoriaBios cable asks this view
   wireKeyboard(S.web.webContents); wireContextMenu(S.web.webContents); wirePanel();
   startComplements();
-  require('./browse').wire();   // 🌐 the body's browser: 53ON's own Chromium, driven through the door (web)
+  require('./browse').wire({ view: function () { return S.web; }, win: function () { return S.win; }, ask: askArnes, body: toBody, foot: function () { return S.panel.on(); } });   // 🌐 the body's browser: 53ON's own Chromium, driven through the door (web)
   require('./door').open(7532).catch(function () {});
   require('./cli').sync();   // 🧰 the commands 53ON gives, outside and inside (Fase C)
 }
@@ -705,6 +751,7 @@ if (TEST_OLLAMA) {
       item.once('done', function (e, st) { if (st === 'completed') toast('share.saved', path.basename(item.getSavePath())); });
     });
   });
+  Menu.setApplicationMenu(null);
   app.whenReady().then(boot);
   app.on('activate', function () { if (BrowserWindow.getAllWindows().length === 0 && !S) boot(); });
 }

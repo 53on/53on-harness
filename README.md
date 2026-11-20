@@ -10,6 +10,8 @@ The open desktop shell of [53ON](https://53on.com/harness/): an Electron app tha
 
 ![53ON Harness: the home, the chat with its model and live metrics, the AI load with its complements, and the chat menu with its effort and Ultracode](assets/screenshots.png)
 
+[![The AI walks into a Babylon.js world and builds a tower of three crates on its own, with MemoriaBios live above it](assets/ai_plays.gif)](https://forum.babylonjs.com/t/64718)
+
 This repository is the shell, and only the shell. What fills it stays private and is not here: the PC commands, the Harness Cable and the other complements are downloaded separately, each one signed (ed25519) and verified before it is installed. Your memories are files on your own PC: the memory engine is signed code that 53on.com serves and that runs inside the app. The store is 53on.com itself.
 
 ## The memory: MemoriaBios

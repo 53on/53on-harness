@@ -25,9 +25,13 @@ function __(k, v) {
   if (v) for (const n in v) s = s.split('{' + n + '}').join(v[n]);
   return s;
 }
+function site(u) {
+  if (u[0] === '/') u = 'https://53on.com' + u;
+  return !/^https:\/\/53on\.com\//.test(u) || /[?&]language=/.test(u) ? u : u + (u.includes('?') ? '&' : '?') + 'language=' + __('site');
+}
 function bag(prefix) {
   const o = {}, b = load(BASE), c = load(lang()), p = prefix + '.';
   for (const k in b) if (k.indexOf(p) === 0) o[k.slice(p.length)] = c[k] != null ? c[k] : b[k];
   return o;
 }
-module.exports = { __: __, lang: lang, langs: langs, bag: bag };
+module.exports = { __: __, lang: lang, langs: langs, bag: bag, site: site };
